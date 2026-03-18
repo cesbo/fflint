@@ -4,6 +4,8 @@
 
 fflint is designed to be embedded into any UI that builds or edits FFmpeg commands: form-based constructors, raw-text editors, profile management dashboards, or headless CI pipelines.
 
+> **Note:** While `fflint` can be used for any project requiring FFmpeg command validation, the current implementation is specifically tailored for the **Senta** app. As such, it includes app-specific conventions, such as using `${i}` as a placeholder for the input source and `${o}` for the output destination (which Senta dynamically replaces with actual paths or streams during execution).
+
 ---
 
 ## Table of Contents
@@ -767,4 +769,4 @@ The manual editor mode additionally warns when pre-input flags appear after `-i`
 
 ## License
 
-fflint is part of the Senta project by Astra Cesbo.
+fflint is part of the Senta project by Cesbo.
