@@ -1,0 +1,929 @@
+{
+  "input": {
+    "-i ${i}": {
+      "uiField": "Input Source",
+      "validValues": [
+        "UDP",
+        "RTP",
+        "RTMP",
+        "HTTP/HLS",
+        "SRT",
+        "Local File",
+        "Capture Device URL"
+      ],
+      "default": "${i}",
+      "description": "Senta substitutes actual URL at stream creation. Always use ${i} placeholder in profiles"
+    },
+    "-re": {
+      "uiField": "Native Rate (toggle)",
+      "validValues": [
+        "Present / absent"
+      ],
+      "default": "off",
+      "description": "Reads input at native frame rate. Auto-enable for File and HTTP/HLS to prevent faster-than-real-time consumption"
+    },
+    "-stream_loop -1": {
+      "uiField": "Loop Input (toggle)",
+      "validValues": [
+        "-1 = infinite",
+        "0 = no loop",
+        "N = repeat N times"
+      ],
+      "default": "off",
+      "description": "Auto-enable for File type. Combine with -re for proper file looping broadcast playout"
+    },
+    "-fflags +genpts": {
+      "uiField": "Input Flags (multi-select)",
+      "validValues": [
+        "+genpts",
+        "+igndts",
+        "+discardcorrupt",
+        "+nobuffer",
+        "+fastseek"
+      ],
+      "default": "none",
+      "description": "Critical for dirty DVB/IPTV sources. genpts regenerates missing PTS; discardcorrupt drops bad TS packets; nobuffer reduces latency on live inputs"
+    },
+    "-use_wallclock_as_timestamps 1": {
+      "uiField": "Use Wall Clock Timestamps (toggle)",
+      "validValues": [
+        "0",
+        "1"
+      ],
+      "default": "0",
+      "description": "Replaces broken stream timestamps with wall clock time. Essential for capture devices and contribution feeds with corrupt DTS/PTS"
+    },
+    "-max_delay": {
+      "uiField": "Max Input Delay (ms)",
+      "validValues": [
+        "Integer (microseconds)",
+        "e.g. 500000"
+      ],
+      "default": "500000",
+      "description": "Buffer delay for out-of-order UDP/RTP packets. Increase for high-jitter contribution links; reduce for low-latency monitoring"
+    },
+    "-i /logo.png": {
+      "uiField": "Logo Path (text)",
+      "validValues": [
+        "Absolute path on server"
+      ],
+      "default": "none",
+      "description": "Second -i argument. Used for overlay filter. Logo file must exist on the FFmpeg server at runtime"
+    }
+  },
+  "output": {
+    "-f mpegts": {
+      "uiField": "Output Format (select)",
+      "validValues": [
+        "mpegts",
+        "flv",
+        "hls",
+        "mp4",
+        "matroska",
+        "null"
+      ],
+      "default": "mpegts",
+      "description": "mpegts is standard for DVB/IPTV contribution and distribution. null useful for analysis without output"
+    },
+    "-f hls -hls_time": {
+      "uiField": "HLS Segment Duration (text)",
+      "validValues": [
+        "Positive integer (seconds)",
+        "e.g. 2",
+        "4",
+        "6"
+      ],
+      "default": "6",
+      "description": "Short segments (2s) for low-latency HLS; longer (6s+) for VOD/catchup. Affects startup time vs. stability tradeoff"
+    },
+    "-hls_list_size": {
+      "uiField": "HLS Playlist Size (text)",
+      "validValues": [
+        "Integer. 0 = unlimited (VOD)",
+        "3\u201310 = rolling window (live)"
+      ],
+      "default": "5",
+      "description": "0 for VOD/catchup TV recording. 3\u20136 for live IPTV. Larger = more recovery window for stalling clients"
+    },
+    "-hls_flags": {
+      "uiField": "HLS Flags (text)",
+      "validValues": [
+        "delete_segments",
+        "append_list",
+        "round_durations",
+        "omit_endlist",
+        "split_by_time",
+        "program_date_time"
+      ],
+      "default": "none",
+      "description": "delete_segments prevents disk fill on live streams. program_date_time required for DVR/catchup timeline anchoring"
+    },
+    "-hls_segment_type": {
+      "uiField": "HLS Segment Type (select)",
+      "validValues": [
+        "mpegts",
+        "fmp4"
+      ],
+      "default": "mpegts",
+      "description": "fmp4 required for HEVC/H.265 HLS (Apple mandate). Also needed for CMAF and Low-Latency HLS (LL-HLS)"
+    },
+    "-hls_enc / -hls_enc_key": {
+      "uiField": "HLS Encryption (toggle + text)",
+      "validValues": [
+        "0 / 1 + 32-char hex key"
+      ],
+      "default": "off",
+      "description": "AES-128 encryption for IPTV OTT delivery. Lightweight DRM without full DRM stack. Key served via HTTPS"
+    },
+    "-hls_fmp4_init_filename": {
+      "uiField": "fMP4 Init Segment Name (text)",
+      "validValues": [
+        "Filename string",
+        "e.g. init.mp4"
+      ],
+      "default": "init.mp4",
+      "description": "Name of the initialization segment when using fMP4 HLS. Required for HEVC HLS packaging"
+    },
+    "-strftime 1": {
+      "uiField": "Time-based Segment Names (toggle)",
+      "validValues": [
+        "0",
+        "1 (enables strftime in output path)"
+      ],
+      "default": "off",
+      "description": "Enables -%Y%m%d%H%M%S in output filename pattern. Used for DVR catchup pipelines with time-indexed segments"
+    },
+    "-avoid_negative_ts": {
+      "uiField": "Avoid Negative Timestamps (select)",
+      "validValues": [
+        "make_zero",
+        "make_non_negative",
+        "disabled",
+        "auto"
+      ],
+      "default": "auto",
+      "description": "Use make_zero for IPTV middleware compatibility. Negative timestamps break many HLS players and IPTV STBs"
+    },
+    "-copyts": {
+      "uiField": "Copy Timestamps (toggle)",
+      "validValues": [
+        "Present / absent"
+      ],
+      "default": "off",
+      "description": "Passes through input timestamps unchanged. Critical in relay/transcode chains to prevent timestamp resets breaking downstream decoders"
+    },
+    "-mpegts_service_id": {
+      "uiField": "MPEG-TS Service ID (text)",
+      "validValues": [
+        "Integer 1\u201365535"
+      ],
+      "default": "1",
+      "description": "DVB Service ID (SID). Must be unique per multiplex. Headend operators control this to match SI/PSI tables in the mux"
+    },
+    "-mpegts_pmt_start_pid": {
+      "uiField": "PMT Start PID (text)",
+      "validValues": [
+        "Hex/integer 32\u20138186 (0x0020\u20130x1FFA)"
+      ],
+      "default": "0x1000 (4096)",
+      "description": "Starting PID for PMT tables. Control to avoid PID conflicts when multiple services share a mux or remultiplexer"
+    },
+    "-mpegts_start_pid": {
+      "uiField": "ES Start PID (text)",
+      "validValues": [
+        "Hex/integer 32\u20138186"
+      ],
+      "default": "0x0100 (256)",
+      "description": "Starting PID for elementary streams (video, audio). Must be coordinated with mux PID assignment plan"
+    },
+    "-mpegts_flags": {
+      "uiField": "MPEG-TS Flags (multi-select)",
+      "validValues": [
+        "system_b",
+        "initial_discontinuity",
+        "pat_pmt_at_frames",
+        "nit",
+        "latm"
+      ],
+      "default": "none",
+      "description": "initial_discontinuity sets discontinuity flag on startup \u2014 prevents STB decoder errors on stream join. pat_pmt_at_frames inserts PSI more frequently"
+    },
+    "-pcr_period": {
+      "uiField": "PCR Period (ms)",
+      "validValues": [
+        "Integer (milliseconds)",
+        "e.g. 20",
+        "40",
+        "100"
+      ],
+      "default": "20",
+      "description": "PCR injection interval in the TS. Too infrequent causes STB clock recovery issues. DVB spec recommends \u2264100ms; 20\u201340ms is safe for broadcast"
+    },
+    "-pes_payload_size": {
+      "uiField": "PES Payload Size (bytes)",
+      "validValues": [
+        "Integer",
+        "e.g. 2930"
+      ],
+      "default": "2930",
+      "description": "Controls PES packet payload size. Affects latency in contribution chains. Smaller = lower latency, more overhead; larger = more efficient"
+    }
+  },
+  "video": {
+    "-c:v": {
+      "uiField": "Video Codec (select)",
+      "validValues": [
+        "copy",
+        "libx264",
+        "libx265",
+        "mpeg2video",
+        "mpeg4",
+        "h264_nvenc",
+        "hevc_nvenc",
+        "h264_vaapi; -vn to disable"
+      ],
+      "default": "copy",
+      "description": "copy passes stream through without re-encoding. mpeg2video for legacy DVB-SD playout. NVENC/VAAPI for GPU-accelerated transcoding"
+    },
+    "-hwaccel": {
+      "uiField": "HW Acceleration (auto/select)",
+      "validValues": [
+        "none",
+        "cuda",
+        "vaapi",
+        "qsv",
+        "dxva2",
+        "videotoolbox"
+      ],
+      "default": "none",
+      "description": "Auto-set: cuda for NVENC, vaapi for VAAPI. Must appear before -i. Without correct hwaccel, GPU codecs fall back to CPU silently"
+    },
+    "-preset": {
+      "uiField": "Preset (select)",
+      "validValues": [
+        "CPU: ultrafast\u2026veryslow",
+        "NVENC: p1\u2013p7",
+        "slow/medium/fast/hp/hq/ll/llhq/llhp/lossless",
+        "VAAPI: none"
+      ],
+      "default": "medium",
+      "description": "Controls encode speed vs. quality tradeoff. NVENC ll/llhq presets for low-latency broadcast contribution (sub-100ms)"
+    },
+    "-profile:v": {
+      "uiField": "Profile (select)",
+      "validValues": [
+        "x264: baseline/main/high/high10/high422/high444",
+        "x265: main/main10/main12",
+        "NVENC h264: baseline/main/high",
+        "NVENC hevc: main/main10",
+        "VAAPI: constrained_baseline/main/high"
+      ],
+      "default": "main",
+      "description": "Baseline for maximum STB compatibility. High for quality. main10/high10 for 10-bit HDR pipelines. High422 for broadcast-quality chroma"
+    },
+    "-level:v": {
+      "uiField": "Level (text)",
+      "validValues": [
+        "H.264: 3.0/3.1/4.0/4.1/4.2/5.0/5.1",
+        "H.265: 3.1/4.0/4.1/5.0/5.1"
+      ],
+      "default": "4.1",
+      "description": "Separate from profile. Low-end STBs often require level \u22644.0. Level 4.1 supports up to 1080p50. Incorrect level causes hardware decoder rejection"
+    },
+    "-pix_fmt": {
+      "uiField": "Pixel Format (select)",
+      "validValues": [
+        "yuv420p",
+        "yuv422p",
+        "yuv444p",
+        "yuv420p10le",
+        "yuv422p10le",
+        "nv12",
+        "p010le"
+      ],
+      "default": "yuv420p",
+      "description": "yuv420p for maximum decoder compatibility. yuv422p for broadcast-grade chroma (XDCAM-style). 10le variants for HDR/WCG pipelines. Many IPTV STBs reject non-yuv420p"
+    },
+    "-s": {
+      "uiField": "Frame Size (select + text)",
+      "validValues": [
+        "Original",
+        "1920x1080",
+        "1280x720",
+        "720x576",
+        "720x480",
+        "Custom (WxH)"
+      ],
+      "default": "Original",
+      "description": "720x576 is DVB-SD PAL standard. 720x480 for NTSC. Always pair with -aspect for non-square pixel SD content"
+    },
+    "-aspect": {
+      "uiField": "Display Aspect Ratio (select)",
+      "validValues": [
+        "16:9",
+        "4:3",
+        "Custom (num:den)"
+      ],
+      "default": "none",
+      "description": "Critical for DVB SD: 720x576 content can be 4:3 or 16:9 \u2014 the DAR flag tells the decoder. Without it, SD content is stretched or letterboxed incorrectly"
+    },
+    "-r": {
+      "uiField": "Frame Rate (select + text)",
+      "validValues": [
+        "Original",
+        "25",
+        "29.97",
+        "30",
+        "50",
+        "59.94",
+        "60",
+        "Custom"
+      ],
+      "default": "Original",
+      "description": "25fps = PAL/DVB standard. 29.97 = NTSC. 50/60 for HD progressive. Always set explicitly for broadcast \u2014 do not rely on source FPS passthrough"
+    },
+    "-vsync / -fps_mode": {
+      "uiField": "FPS Sync Mode (select)",
+      "validValues": [
+        "passthrough (0)",
+        "cfr (1)",
+        "vfr (2)",
+        "auto (-1)"
+      ],
+      "default": "auto",
+      "description": "passthrough for relay (preserves original timing). cfr for broadcast encoding (ensures constant frame rate). vfr for VOD where frames may be irregular"
+    },
+    "-g": {
+      "uiField": "GOP Size (text)",
+      "validValues": [
+        "Positive integer",
+        "e.g. 25",
+        "50",
+        "60"
+      ],
+      "default": "50",
+      "description": "Keyframe interval in frames. For broadcast: GOP = framerate (1-second GOP) or 2\u00d7framerate (2-second GOP). Larger GOPs improve compression, shorter improve seek/zap time"
+    },
+    "-keyint_min": {
+      "uiField": "Min Keyframe Interval (text)",
+      "validValues": [
+        "Positive integer (auto: GOP\u00f72)"
+      ],
+      "default": "GOP/2",
+      "description": "Minimum distance between keyframes. For CBR broadcast: set equal to GOP to prevent scene-change keyframes breaking CBR predictability. Combine with -sc_threshold 0"
+    },
+    "-sc_threshold": {
+      "uiField": "Scene Change Threshold (text)",
+      "validValues": [
+        "0\u20131000000 (0 = disabled)"
+      ],
+      "default": "40",
+      "description": "Set to 0 for strict CBR broadcast. Default 40 inserts extra keyframes on scene changes, destroying CBR bitrate predictability. Essential for DVB contribution encoding"
+    },
+    "-b:v": {
+      "uiField": "Target Bitrate (text + suffix)",
+      "validValues": [
+        "Integer with k/M/G suffix",
+        "e.g. 500k",
+        "4M",
+        "15M"
+      ],
+      "default": "none",
+      "description": "CBR/VBR target. DVB-S2 typical: SD 2\u20134 Mbps, HD 6\u201312 Mbps, UHD 20\u201340 Mbps. Must stay below mux bandwidth allocation"
+    },
+    "-crf": {
+      "uiField": "CRF Value (text)",
+      "validValues": [
+        "x264/x265/NVENC: 0\u201351 (0=lossless",
+        "18\u201328 typical)",
+        "VAAPI: 0\u201352"
+      ],
+      "default": "23",
+      "description": "Quality-based VBR. Not suitable for strict broadcast CBR. Useful for VOD/archive encoding where bitrate budget is flexible"
+    },
+    "-maxrate": {
+      "uiField": "Max Bitrate (text + suffix)",
+      "validValues": [
+        "Integer with k/M/G suffix"
+      ],
+      "default": "none",
+      "description": "VBR peak cap. Set to 110\u2013120% of target bitrate for broadcast. Required alongside -bufsize for proper VBR operation"
+    },
+    "-bufsize": {
+      "uiField": "Buffer Size (text + suffix)",
+      "validValues": [
+        "Integer with k/M/G suffix",
+        "typically 2\u00d7 -maxrate"
+      ],
+      "default": "none",
+      "description": "HRD buffer size. Controls bitrate variation window. For broadcast: 1\u20132\u00d7 maxrate. Larger = smoother but more decoder buffer required"
+    },
+    "-bf": {
+      "uiField": "B-Frames (text)",
+      "validValues": [
+        "0\u201316 (0 = no B-frames)"
+      ],
+      "default": "2",
+      "description": "Many DVB hardware decoders (MPEG-2 era STBs) support 0\u20132 B-frames max. Set to 0 for maximum compatibility. Fewer B-frames also reduce encode latency"
+    },
+    "-refs": {
+      "uiField": "Reference Frames (text)",
+      "validValues": [
+        "1\u201316"
+      ],
+      "default": "3",
+      "description": "Low-end STBs support 1\u20134 reference frames. High ref counts improve quality but require more decoder memory. Set to 1\u20132 for legacy STB compatibility"
+    },
+    "-bsf:v": {
+      "uiField": "Bitstream Filter (select)",
+      "validValues": [
+        "h264_mp4toannexb",
+        "hevc_mp4toannexb",
+        "mpeg4_unpack_bframes",
+        "noise",
+        "dump_extra",
+        "remove_extra"
+      ],
+      "default": "none",
+      "description": "h264_mp4toannexb required when rewrapping H.264 from MP4/fMP4 to MPEG-TS. hevc_mp4toannexb for HEVC fMP4\u2192TS. mpeg4_unpack_bframes for MPEG-4 ASP compatibility"
+    },
+    "-forced-idr 1": {
+      "uiField": "Force IDR (toggle)",
+      "validValues": [
+        "0",
+        "1"
+      ],
+      "default": "0",
+      "description": "Forces all keyframes to be IDR frames. Required when downstream decoders (STBs, IRDs) need clean random-access points. Especially important for NVENC"
+    },
+    "-deinterlace (yadif)": {
+      "uiField": "Deinterlace (toggle)",
+      "validValues": [
+        "yadif mode: 0=frame",
+        "1=field",
+        "2=frame nospatial",
+        "3=field nospatial"
+      ],
+      "default": "off",
+      "description": "DVB SD and some HD content is interlaced. Use mode=1 (field) for broadcast-quality deinterlace preserving 50fps output. yadif:mode=0 for progressive-only output"
+    },
+    "-field_order": {
+      "uiField": "Field Order (select)",
+      "validValues": [
+        "tt (top-first)",
+        "bb (bottom-first)",
+        "tb",
+        "bt",
+        "progressive"
+      ],
+      "default": "none",
+      "description": "Required when encoding interlaced output. DVB SD PAL is typically top-field-first. Mismatch causes comb artifacts. Set explicitly for any interlaced output"
+    },
+    "-color_primaries": {
+      "uiField": "Color Primaries (select)",
+      "validValues": [
+        "bt709",
+        "bt2020",
+        "smpte170m (bt601)",
+        "smpte432",
+        "film"
+      ],
+      "default": "bt709",
+      "description": "Metadata tag for color pipeline. bt709 for HD/FHD broadcast. bt2020 for UHD/HDR. Wrong value causes downstream color processing errors in HbbTV/DVB streams"
+    },
+    "-color_trc": {
+      "uiField": "Transfer Characteristics (select)",
+      "validValues": [
+        "bt709",
+        "smpte2084 (PQ/HDR10)",
+        "arib-std-b67 (HLG)",
+        "linear",
+        "iec61966-2-1 (sRGB)"
+      ],
+      "default": "bt709",
+      "description": "smpte2084 for HDR10. arib-std-b67 for HLG (broadcast-preferred HDR). Must match the actual encoding \u2014 tagging bt709 on an HLG stream causes incorrect display"
+    },
+    "-colorspace": {
+      "uiField": "Color Space (select)",
+      "validValues": [
+        "bt709",
+        "bt2020nc",
+        "bt2020c",
+        "smpte170m",
+        "smpte240m"
+      ],
+      "default": "bt709",
+      "description": "YCbCr matrix coefficients. bt709 for HD. bt2020nc (non-constant luminance) for UHD/HDR. DVB/HbbTV compliance requires correct tagging"
+    }
+  },
+  "audio": {
+    "-c:a": {
+      "uiField": "Audio Codec (select)",
+      "validValues": [
+        "copy",
+        "aac",
+        "libmp3lame",
+        "ac3",
+        "eac3",
+        "libopus; -an to disable"
+      ],
+      "default": "copy",
+      "description": "ac3/eac3 standard for DVB and cable. aac for HLS/OTT. libopus for WebRTC/low-latency streams. copy for relay without re-encoding"
+    },
+    "-b:a": {
+      "uiField": "Audio Bitrate (select)",
+      "validValues": [
+        "Default",
+        "64k",
+        "96k",
+        "128k",
+        "192k",
+        "256k",
+        "320k"
+      ],
+      "default": "128k",
+      "description": "DVB AC3 typically 192\u2013384k. AAC stereo: 128\u2013192k. EAC3 5.1: 384\u2013640k. Do not set below 96k for broadcast audio"
+    },
+    "-ar": {
+      "uiField": "Sample Rate (select)",
+      "validValues": [
+        "Original",
+        "44100",
+        "48000",
+        "96000"
+      ],
+      "default": "48000",
+      "description": "48000 Hz is the DVB/broadcast standard. 44100 for MP3/legacy. Always resample to 48000 when mixing with broadcast equipment. 96000 for hi-fi archiving"
+    },
+    "-ac": {
+      "uiField": "Channels (select)",
+      "validValues": [
+        "Original",
+        "1 (Mono)",
+        "2 (Stereo)",
+        "6 (5.1)",
+        "8 (7.1)"
+      ],
+      "default": "2",
+      "description": "DVB primary audio typically stereo (2). 5.1 for premium/cinema channels. Mono for commentary/secondary audio tracks"
+    },
+    "-channel_layout": {
+      "uiField": "Channel Layout (select)",
+      "validValues": [
+        "stereo",
+        "mono",
+        "5.1",
+        "5.1(side)",
+        "7.1",
+        "DL+DR",
+        "quad"
+      ],
+      "default": "stereo",
+      "description": "Explicit layout beyond channel count. 5.1(side) vs 5.1 affects surround speaker routing. Required for correct surround passthrough on STBs"
+    },
+    "-dialnorm": {
+      "uiField": "Dialogue Normalization (text)",
+      "validValues": [
+        "-31 to -1 (dBFS)"
+      ],
+      "default": "-24",
+      "description": "Embedded in AC3/EAC3 bitstream. Tells Dolby decoder the dialogue level so it can normalize playback volume. Required for broadcast Dolby compliance. -24 is EBU R128 reference level"
+    },
+    "-af loudnorm": {
+      "uiField": "EBU R128 Loudness (toggle + params)",
+      "validValues": [
+        "I=-23:TP=-1:LRA=11 (EBU R128) or I=-24:TP=-2:LRA=10 (broadcaster variant)"
+      ],
+      "default": "off",
+      "description": "Legally required for broadcast in most European markets (EBU R128). Target: I=-23 LUFS, True Peak \u2264 -1 dBTP. Enable as audio filter with two-pass for best accuracy"
+    },
+    "-bsf:a": {
+      "uiField": "Audio Bitstream Filter (select)",
+      "validValues": [
+        "aac_adtstoasc",
+        "mp3decomp",
+        "ac3_cores"
+      ],
+      "default": "none",
+      "description": "aac_adtstoasc required when packaging AAC-ADTS into MP4/fMP4 containers. Commonly needed when remuxing HLS streams"
+    },
+    "-map 0:a:0": {
+      "uiField": "Audio Stream Map (text)",
+      "validValues": [
+        "0:a:0",
+        "0:a:1",
+        "0:a:2 \u2026 or 0:a (all audio streams)"
+      ],
+      "default": "none",
+      "description": "DVB streams carry multiple audio tracks (multi-language). Use -map to select or pass through specific tracks. Currently absent from constructor \u2014 high-priority gap for IPTV providers"
+    },
+    "-metadata:s:a:0": {
+      "uiField": "Audio Stream Metadata (text)",
+      "validValues": [
+        "language=eng",
+        "language=fra",
+        "title=Commentary"
+      ],
+      "default": "none",
+      "description": "Language tag on audio streams. Required for DVB SI compliance and automatic audio track selection on STBs and middleware platforms"
+    },
+    "-apad": {
+      "uiField": "Audio Pad (filter)",
+      "validValues": [
+        "Present / absent"
+      ],
+      "default": "off",
+      "description": "Pads audio with silence when audio is shorter than video. Prevents sync loss from intermittent audio dropout common in DVB contribution feeds"
+    }
+  },
+  "subtitles": {
+    "-c:s": {
+      "uiField": "Subtitle Codec (select)",
+      "validValues": [
+        "copy",
+        "dvbsub",
+        "dvbteletext",
+        "webvtt",
+        "mov_text; -sn to disable"
+      ],
+      "default": "none",
+      "description": "DVB streams carry DVB subtitles (dvbsub) and teletext (dvbteletext). Minimum: expose -sn to drop subtitles. Currently completely absent from constructor"
+    },
+    "-sn": {
+      "uiField": "Disable Subtitles (toggle)",
+      "validValues": [
+        "Present / absent"
+      ],
+      "default": "off",
+      "description": "Drops all subtitle streams. Useful when output container does not support subtitles (e.g. plain UDP MPEG-TS without subtitle PIDs)"
+    },
+    "-map 0:s": {
+      "uiField": "Subtitle Stream Map (text)",
+      "validValues": [
+        "0:s",
+        "0:s:0",
+        "0:s:1"
+      ],
+      "default": "none",
+      "description": "Pass specific subtitle streams. Required when source has multiple subtitle languages and output must preserve them"
+    },
+    "-metadata:s:s:0": {
+      "uiField": "Subtitle Stream Metadata (text)",
+      "validValues": [
+        "language=eng",
+        "language=fra"
+      ],
+      "default": "none",
+      "description": "Language metadata on subtitle streams. Required for DVB SI compliance and EPG-driven subtitle selection on STBs"
+    }
+  },
+  "stream": {
+    "-map": {
+      "uiField": "Stream Map (text / multi)",
+      "validValues": [
+        "0:v",
+        "0:a:0",
+        "0:a:1",
+        "0:s",
+        "-0:d (exclude data)",
+        "0 (all)"
+      ],
+      "default": "none",
+      "description": "Fundamental for multi-audio DVB streams. Without -map, FFmpeg selects \"best\" stream per type \u2014 silently dropping secondary audio/subtitle tracks. High-priority gap"
+    },
+    "-map_metadata": {
+      "uiField": "Map Metadata (select)",
+      "validValues": [
+        "-1 (none)",
+        "0 (from input)",
+        "g (global)"
+      ],
+      "default": "0",
+      "description": "Controls whether input metadata (service name, language tags) is copied to output. Set -1 to strip all metadata for clean output profiles"
+    },
+    "-map_chapters": {
+      "uiField": "Map Chapters (select)",
+      "validValues": [
+        "-1 (none)",
+        "0 (from input)"
+      ],
+      "default": "0",
+      "description": "Chapter markers from source. Usually irrelevant for live IPTV; set -1 for clean TS output"
+    }
+  },
+  "filters": {
+    "-filter:v yadif": {
+      "uiField": "Deinterlace (toggle)",
+      "validValues": [
+        "yadif",
+        "yadif=mode=0",
+        "yadif=mode=1 (field output",
+        "50fps from 25i)"
+      ],
+      "default": "off",
+      "description": "yadif mode=1 for field-rate output (25i \u2192 50p). mode=0 for frame-rate output (25i \u2192 25p). Use mode=1 for broadcast-quality output preserving motion"
+    },
+    "-filter:v scale": {
+      "uiField": "Scale Filter (via Frame Size)",
+      "validValues": [
+        "scale=1920:1080",
+        "scale=1280:720",
+        "scale=-2:720 (keep AR)"
+      ],
+      "default": "off",
+      "description": "Auto-applied when Frame Size is not Original. Use -2 to maintain aspect ratio. Pair with setsar=1:1 for non-square pixel sources"
+    },
+    "-filter:v setsar": {
+      "uiField": "Set Sample Aspect Ratio (text)",
+      "validValues": [
+        "setsar=1:1",
+        "setsar=64:45 (PAL 16:9)"
+      ],
+      "default": "1:1",
+      "description": "Must apply after scaling non-square-pixel DVB SD sources. Without setsar=1:1 after rescaling, output appears distorted on square-pixel displays"
+    },
+    "-filter:v fps": {
+      "uiField": "FPS Filter (via FPS field)",
+      "validValues": [
+        "fps=25",
+        "fps=50",
+        "fps=29.97"
+      ],
+      "default": "off",
+      "description": "Alternative to -r flag. Uses frame interpolation/dropping. Smoother than -r for fractional rates. Prefer over -r when quality matters"
+    },
+    "-filter:v drawtext": {
+      "uiField": "Text Overlay (text)",
+      "validValues": [
+        "drawtext=text='Channel Name':fontsize=24:fontcolor=white:x=10:y=10"
+      ],
+      "default": "off",
+      "description": "Channel bug/watermark as text. Alternative to PNG overlay. Supports dynamic variables: %{localtime}, stream timecode. No second -i required"
+    },
+    "-filter_complex overlay": {
+      "uiField": "Logo Overlay (via Logo Path)",
+      "validValues": [
+        "overlay=W-w-10:H-h-10",
+        "overlay=10:10",
+        "overlay=main_w-overlay_w-10:10"
+      ],
+      "default": "off",
+      "description": "Position: top-left=10:10, top-right=W-w-10:10, bottom-right=W-w-10:H-h-10. Requires second -i (logo path). Cannot combine with -c:v copy"
+    },
+    "-filter_complex": {
+      "uiField": "Complex Filter (passthrough)",
+      "validValues": [
+        "Any valid filtergraph string"
+      ],
+      "default": "none",
+      "description": "Used for deinterlace+overlay combination. Editor/passthrough mode only \u2014 constructor builds this automatically when both deinterlace and logo are active"
+    },
+    "-af loudnorm": {
+      "uiField": "EBU R128 Loudness Normalization",
+      "validValues": [
+        "loudnorm=I=-23:TP=-1:LRA=11",
+        "loudnorm=I=-24:TP=-2:LRA=10"
+      ],
+      "default": "off",
+      "description": "EBU R128 compliance for broadcast. I = integrated loudness (LUFS). TP = true peak (dBTP). LRA = loudness range. Two-pass mode gives best accuracy for pre-recorded content"
+    },
+    "-af aresample": {
+      "uiField": "Audio Resample Filter",
+      "validValues": [
+        "aresample=48000",
+        "aresample=44100:resampler=soxr"
+      ],
+      "default": "off",
+      "description": "High-quality resampling. soxr resampler preferred for broadcast. Alternative to -ar flag \u2014 use when more control over resampling quality is needed"
+    },
+    "-af channelmap": {
+      "uiField": "Channel Map Filter",
+      "validValues": [
+        "channelmap=0-0",
+        "1-1",
+        "channelmap=map=FL-FC",
+        "FR-FC:channel_layout=stereo"
+      ],
+      "default": "off",
+      "description": "Remaps audio channels. Useful for extracting specific channels from multi-channel DVB audio, e.g. extracting dialogue track from 5.1 to stereo"
+    },
+    "-af apad": {
+      "uiField": "Audio Pad Filter",
+      "validValues": [
+        "apad",
+        "apad=pad_len=48000"
+      ],
+      "default": "off",
+      "description": "Pads audio with silence to match video duration. Prevents A/V sync loss when audio has gaps. Common issue in DVB contribution from satellite uplink feeds"
+    }
+  },
+  "senta": {
+    "${varname}": {
+      "uiField": "Variable Name (text)",
+      "validValues": [
+        "Alphanumeric + underscore",
+        "e.g. gpu",
+        "bitrate",
+        "service_id"
+      ],
+      "default": "none",
+      "description": "Placeholder in command template. Operators set values at stream creation. Enables reusable profiles parameterized per channel"
+    },
+    "Command Template": {
+      "uiField": "Command Template (text)",
+      "validValues": [
+        "Flag pattern with $value",
+        "e.g. -gpu $value",
+        "-b:v $value",
+        "-mpegts_service_id $value"
+      ],
+      "default": "none",
+      "description": "The ffmpeg flag with $value replaced at runtime. Template is emitted verbatim into the command. Multiple flags supported: -maxrate $value -bufsize ${value}x2"
+    },
+    "Default Value": {
+      "uiField": "Default Value (text)",
+      "validValues": [
+        "Any string",
+        "e.g. 0",
+        "4M",
+        "1001"
+      ],
+      "default": "none",
+      "description": "Pre-filled when operator creates a stream. Leaves operator an educated starting point. Use sensible broadcast defaults"
+    }
+  },
+  "global": {
+    "-y": {
+      "uiField": "Auto-overwrite (always on)",
+      "validValues": [
+        "flag \u2014 always present"
+      ],
+      "default": "on",
+      "description": "Always included. Prevents FFmpeg blocking on output file overwrite prompt in unattended daemon operation"
+    },
+    "-hide_banner": {
+      "uiField": "Hide Banner (always on)",
+      "validValues": [
+        "flag \u2014 always present"
+      ],
+      "default": "on",
+      "description": "Suppresses FFmpeg version/build info from log output. Always included for clean Senta log parsing"
+    },
+    "-loglevel": {
+      "uiField": "Log Level (select)",
+      "validValues": [
+        "quiet",
+        "panic",
+        "fatal",
+        "error",
+        "warning",
+        "info",
+        "verbose",
+        "debug"
+      ],
+      "default": "warning",
+      "description": "Controls FFmpeg log verbosity. warning for production. info/verbose for debugging. Piped to Senta log subsystem"
+    },
+    "-threads": {
+      "uiField": "CPU Threads (text)",
+      "validValues": [
+        "0 (auto)",
+        "1\u201364"
+      ],
+      "default": "0",
+      "description": "Thread count for CPU encoding. 0 = auto (uses all available cores). Set explicitly on shared servers to limit resource usage per stream"
+    },
+    "-t": {
+      "uiField": "Duration Limit (text)",
+      "validValues": [
+        "Time in seconds or HH:MM:SS format"
+      ],
+      "default": "none",
+      "description": "Stops encoding after specified duration. Useful for test transcodes, clip extraction, or scheduled programme recording windows"
+    },
+    "-ss": {
+      "uiField": "Start Position (text)",
+      "validValues": [
+        "Time in seconds or HH:MM:SS format"
+      ],
+      "default": "none",
+      "description": "Seek to position before processing. Use before -i for fast seek (keyframe-accurate) or after -i for slow seek (frame-accurate). Relevant for VOD clip extraction"
+    },
+    "-stats": {
+      "uiField": "Show Stats (toggle)",
+      "validValues": [
+        "Present / absent"
+      ],
+      "default": "on",
+      "description": "Prints encoding progress (fps, bitrate, time) to stderr. Always enable for Senta monitoring integration. Parse for real-time quality metrics"
+    },
+    "-progress": {
+      "uiField": "Progress Output (text)",
+      "validValues": [
+        "URL or pipe:1 for stdout"
+      ],
+      "default": "none",
+      "description": "Machine-readable progress output. Senta can parse for real-time monitoring. Format: key=value pairs at each stats interval"
+    }
+  }
+}

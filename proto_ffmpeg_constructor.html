@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Senta — FFmpeg Command Constructor</title>
+  <link rel="stylesheet" href="senta_ffmpeg_constructor.css">
+</head>
+
+<body>
+
+  <!-- SIDEBAR (icon-only, expand on hover) -->
+  <div class="sidebar">
+    <div class="sidebar-logo"><span class="sidebar-logo-icon">S</span><span class="sidebar-text">SENTA</span></div>
+    <div class="sidebar-item" title="Status"><span class="sidebar-icon">◎</span><span class="sidebar-text">Status</span>
+    </div>
+    <div class="sidebar-item active" onclick="goBackToList()" title="Profiles"><span class="sidebar-icon">☰</span><span
+        class="sidebar-text">Profiles</span></div>
+    <div class="sidebar-item" title="Streams"><span class="sidebar-icon">▶</span><span
+        class="sidebar-text">Streams</span></div>
+    <div class="sidebar-item" title="Servers"><span class="sidebar-icon">⬡</span><span
+        class="sidebar-text">Servers</span></div>
+    <div class="sidebar-item" title="Triggers"><span class="sidebar-icon">⚡</span><span
+        class="sidebar-text">Triggers</span></div>
+    <div class="sidebar-item" title="Settings"><span class="sidebar-icon">⚙</span><span
+        class="sidebar-text">Settings</span></div>
+    <div class="sidebar-item" title="Docs"><span class="sidebar-icon">📖</span><span
+        class="sidebar-text">Documentation</span></div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- ------- PROFILES LIST VIEW ------- -->
+    <div id="view-profiles-list">
+      <div class="main-header" style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div>
+          <div class="main-title">Profiles</div>
+          <div class="main-sub">A list of all your senta-streamer profiles (ffmpeg commands)</div>
+        </div>
+        <button class="btn-sm-primary" onclick="startNewProfile()">+ Add profile</button>
+      </div>
+      <div class="profiles-list-wrap" style="padding:0 32px 40px">
+        <table class="profiles-table" id="profiles-table">
+          <thead>
+            <tr>
+              <th style="width:60px">ID</th>
+              <th>Name</th>
+              <th style="width:60px"></th>
+            </tr>
+          </thead>
+          <tbody id="profiles-tbody">
+            <!-- populated by JS -->
+          </tbody>
+        </table>
+        <div class="profiles-empty" id="profiles-empty">No profiles yet. Click <strong>Add profile</strong> to create
+          one.</div>
+      </div>
+    </div>
+
+    <!-- ------- PROFILE EDITOR VIEW ------- -->
+    <div id="view-editor" class="hidden">
+      <div class="main-header">
+        <div class="editor-topbar">
+          <div class="editor-topbar-left">
+            <div class="main-title" id="editor-title">Add Profile</div>
+          </div>
+          <div class="editor-topbar-right">
+            <div class="tabs">
+              <div class="tab active" id="tab-constructor" onclick="switchTab('constructor')">Constructor</div>
+              <div class="tab" id="tab-manual" onclick="switchTab('manual')">Editor</div>
+            </div>
+          </div>
+        </div>
+        <!-- Inline metadata bar -->
+        <div class="editor-meta-bar">
+          <div class="meta-field">
+            <div class="field-label">Profile Name</div>
+            <input type="text" id="f-name" placeholder='e.g. "HD h264 NVENC"' oninput="rebuild()">
+          </div>
+        </div>
+      </div>
+
+      <!-- CONSTRUCTOR TAB -->
+      <div id="panel-constructor" class="content">
+        <div class="form-col">
+
+          <!-- Card: Input Source -->
+          <div class="section card-input">
+            <div class="section-header" onclick="toggleSection(this)">Input Source <span class="collapse-icon">▾</span>
+            </div>
+            <div class="section-body">
+              <div class="field">
+                <div class="field-label">Input Type</div>
+                <select id="f-inputType" onchange="onInputTypeChange()">
+                  <option value="udp">UDP</option>
+                  <option value="rtp">RTP</option>
+                  <option value="rtmp">RTMP</option>
+                  <option value="http">HTTP / HLS</option>
+                  <option value="file">Local File</option>
+                  <option value="srt">SRT</option>
+                  <option value="capture">Capture Device</option>
+                </select>
+              </div>
+              <div class="field toggle-field" id="field-re" style="display:none">
+                <div class="toggle-wrap" id="tog-re" onclick="toggleField('re')">
+                  <div class="toggle-track" id="track-re">
+                    <div class="toggle-thumb"></div>
+                  </div>
+                  <span class="toggle-label">-re (native rate)</span>
+
+                </div>
+              </div>
+              <div class="field toggle-field" id="field-loop" style="display:none">
+                <div class="toggle-wrap" id="tog-loop" onclick="toggleField('loop')">
+                  <div class="toggle-track" id="track-loop">
+                    <div class="toggle-thumb"></div>
+                  </div>
+                  <span class="toggle-label">-stream_loop -1</span>
+
+                </div>
+              </div>
+              <div class="field full" id="logo-field" style="display:none">
+                <div class="field-label">Logo Path <span class="field-hint">(overlay)</span></div>
+                <input type="text" id="f-logoPath" placeholder="/path/to/logo.png" oninput="rebuild()">
+              </div>
+              <div class="field full">
+                <div class="field-label">Input Flags <span class="field-hint">(-fflags)</span></div>
+                <div class="pill-group" id="fflags-group">
+                  <button type="button" class="pill" data-value="+genpts" title="regenerate PTS"
+                    onclick="togglePill(this)">+genpts</button>
+                  <button type="button" class="pill" data-value="+igndts" title="ignore DTS"
+                    onclick="togglePill(this)">+igndts</button>
+                  <button type="button" class="pill" data-value="+discardcorrupt" title="discard corrupt packets"
+                    onclick="togglePill(this)">+discardcorrupt</button>
+                  <button type="button" class="pill" data-value="+nobuffer" title="low-latency"
+                    onclick="togglePill(this)">+nobuffer</button>
+                  <button type="button" class="pill" data-value="+fastseek" title="fast seek"
+                    onclick="togglePill(this)">+fastseek</button>
+                </div>
+              </div>
+              <div class="field toggle-field">
+                <div class="toggle-wrap" id="tog-wallclock" onclick="toggleField('wallclock')">
+                  <div class="toggle-track" id="track-wallclock">
+                    <div class="toggle-thumb"></div>
+                  </div>
+                  <span class="toggle-label">-use_wallclock_as_timestamps</span>
+                </div>
+              </div>
+              <div class="field">
+                <div class="field-label">Max Delay <span class="field-hint">(&micro;s)</span></div>
+                <input type="text" id="f-maxDelay" placeholder="500000" oninput="rebuild()">
+              </div>
+              <div class="field">
+                <div class="field-label">Timeout <span class="field-hint">(&micro;s)</span></div>
+                <input type="text" id="f-timeout" placeholder="5000000" oninput="rebuild()">
+              </div>
+              <div class="field">
+                <div class="field-label">Thread Queue <span class="field-hint">(-thread_queue_size)</span></div>
+                <input type="text" id="f-threadQueueSize" placeholder="512" oninput="rebuild()">
+              </div>
+              <div class="field">
+                <div class="field-label">Analyze Duration <span class="field-hint">(&micro;s)</span></div>
+                <input type="text" id="f-analyzeduration" placeholder="10000000" oninput="rebuild()">
+              </div>
+              <div class="field">
+                <div class="field-label">Probe Size <span class="field-hint">(bytes)</span></div>
+                <input type="text" id="f-probesize" placeholder="5000000" oninput="rebuild()">
+              </div>
+              <div class="field toggle-field">
+                <div class="toggle-wrap" id="tog-copyts" onclick="toggleField('copyts')">
+                  <div class="toggle-track" id="track-copyts">
+                    <div class="toggle-thumb"></div>
+                  </div>
+                  <span class="toggle-label">-copyts (preserve timestamps)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Card: Output / Container -->
+          <div class="section card-output">
+            <div class="section-header" onclick="toggleSection(this)">Output / Container <span
+                class="collapse-icon">▾</span></div>
+            <div class="section-body">
+              <div class="field">
+                <div class="field-label">Output Format</div>
+                <select id="f-outputFormat" onchange="onOutputFormatChange()">
+                  <option value="mpegts">mpegts (MPEG-TS)</option>
+                  <option value="flv">flv (RTMP)</option>
+                  <option value="hls">hls (HLS)</option>
+                  <option value="mp4">mp4</option>
+                  <option value="matroska">matroska (MKV)</option>
+                  <option value="null">null (test)</option>
+                </select>
+              </div>
+              <div class="field" id="hlsTimeField" style="display:none">
+                <div class="field-label">HLS Segment (sec)</div>
+                <input type="text" id="f-hlsTime" value="4" placeholder="4" oninput="rebuild()">
+              </div>
+              <div class="field" id="hlsListField" style="display:none">
+                <div class="field-label">HLS Playlist Size</div>
+                <input type="text" id="f-hlsListSize" value="5" placeholder="5" oninput="rebuild()">
+              </div>
+              <div class="field full" id="hlsFlagsField" style="display:none">
+                <div class="field-label">HLS Flags <span class="field-hint">(e.g. delete_segments)</span></div>
+                <input type="text" id="f-hlsFlags" placeholder="delete_segments" oninput="rebuild()">
+              </div>
+              <div class="field" id="hlsSegmentTypeField" style="display:none">
+                <div class="field-label">HLS Segment Type</div>
+                <select id="f-hlsSegmentType" onchange="rebuild()">
+                  <option value="mpegts">mpegts (default)</option>
+                  <option value="fmp4">fmp4 (HEVC / CMAF)</option>
+                </select>
+              </div>
+              <div class="field">
+                <div class="field-label">Avoid Negative TS</div>
+                <select id="f-avoidNegativeTs" onchange="rebuild()">
+                  <option value="">— Default —</option>
+                  <option value="auto">auto</option>
+                  <option value="make_zero">make_zero</option>
+                  <option value="make_non_negative">make_non_negative</option>
+                  <option value="disabled">disabled</option>
+                </select>
+              </div>
+              <!-- -map support deferred to a future release -->
+              <div id="mpegtsSectionFields">
+                <div class="subsection" style="margin-top:8px">
+                  <div class="subsection-header collapsed" onclick="toggleSection(this)">Advanced MPEG-TS Options <span
+                      class="collapse-icon">▾</span></div>
+                  <div class="section-body collapsed" style="padding:8px 10px">
+                    <div class="field">
+                      <div class="field-label">Service ID</div>
+                      <input type="text" id="f-mpegtsServiceId" placeholder="1" oninput="rebuild()">
+                    </div>
+                    <div class="field">
+                      <div class="field-label">PMT Start PID</div>
+                      <input type="text" id="f-mpegtsPmtStartPid" placeholder="0x1000" oninput="rebuild()">
+                    </div>
+                    <div class="field">
+                      <div class="field-label">ES Start PID</div>
+                      <input type="text" id="f-mpegtsStartPid" placeholder="0x0100" oninput="rebuild()">
+                    </div>
+                    <div class="field full">
+                      <div class="field-label">MPEG-TS Flags</div>
+                      <div class="pill-group" id="mpegtsFlags-group">
+                        <button type="button" class="pill" data-value="initial_discontinuity"
+                          title="mark first segment as discontinuity"
+                          onclick="togglePill(this)">initial_discontinuity</button>
+                        <button type="button" class="pill" data-value="pat_pmt_at_frames"
+                          title="write PAT/PMT at every frame" onclick="togglePill(this)">pat_pmt_at_frames</button>
+                        <button type="button" class="pill" data-value="system_b" title="ATSC System B format"
+                          onclick="togglePill(this)">system_b</button>
+                        <button type="button" class="pill" data-value="nit" title="write NIT table"
+                          onclick="togglePill(this)">nit</button>
+                        <button type="button" class="pill" data-value="latm" title="use LATM audio muxing"
+                          onclick="togglePill(this)">latm</button>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <div class="field-label">PCR Period <span class="field-hint">(ms)</span></div>
+                      <input type="text" id="f-pcrPeriod" placeholder="20" oninput="rebuild()">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card: Video Encoding -->
+          <div class="section card-video">
+            <div class="section-header" onclick="toggleSection(this)">Video Encoding <span
+                class="collapse-icon">▾</span></div>
+            <div class="section-body">
+              <div class="field full">
+                <div class="field-label">Video Codec</div>
+                <select id="f-videoCodec" onchange="onCodecChange()">
+                  <option value="disabled">Disabled (-vn)</option>
+                  <optgroup label="Copy">
+                    <option value="copy" selected>copy (no transcoding)</option>
+                  </optgroup>
+                  <optgroup label="CPU Codecs">
+                    <option value="libx264">libx264 (CPU H.264)</option>
+                    <option value="libx265">libx265 (CPU H.265)</option>
+                    <option value="mpeg2video">mpeg2video</option>
+                    <option value="mpeg4">mpeg4</option>
+                  </optgroup>
+                  <optgroup label="GPU Codecs">
+                    <option value="h264_nvenc">h264_nvenc (NVIDIA)</option>
+                    <option value="hevc_nvenc">hevc_nvenc (NVIDIA)</option>
+                    <option value="h264_vaapi">h264_vaapi (Intel/AMD)</option>
+                  </optgroup>
+                </select>
+              </div>
+              <div class="field full" id="videoOptionsBlock" style="display:none">
+                <div class="section-body">
+                  <div class="field">
+                    <div class="field-label">HW Accel</div>
+                    <select id="f-hwaccel" onchange="rebuild()">
+                      <option value="none">None</option>
+                      <option value="cuda">cuda (NVIDIA)</option>
+                      <option value="vaapi">vaapi (Intel/AMD)</option>
+                      <option value="qsv">qsv (Intel QSV)</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <div class="field-label">HW Accel Output <span class="field-hint">(-hwaccel_output_format)</span></div>
+                    <select id="f-hwaccelOutputFormat" onchange="rebuild()">
+                      <option value="none">— None —</option>
+                      <option value="cuda">cuda</option>
+                      <option value="vaapi">vaapi</option>
+                      <option value="qsv">qsv</option>
+                      <option value="d3d11va">d3d11va</option>
+                      <option value="opencl">opencl</option>
+                      <option value="vulkan">vulkan</option>
+                    </select>
+                  </div>
+                  <div class="field" id="gpuIndexField" style="display:none">
+                    <div class="field-label">GPU Index <span class="field-hint">(-gpu)</span></div>
+                    <input type="text" id="f-gpuIndex" placeholder="0" oninput="rebuild()" style="max-width:80px">
+                  </div>
+                  <div class="field">
+                    <div class="field-label">Preset</div>
+                    <select id="f-preset" onchange="rebuild()">
+                      <option value="">— None —</option>
+                      <option value="ultrafast">ultrafast</option>
+                      <option value="veryfast">veryfast</option>
+                      <option value="fast">fast</option>
+                      <option value="medium">medium</option>
+                      <option value="slow">slow</option>
+                      <option value="veryslow">veryslow</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <div class="field-label">Profile</div>
+                    <select id="f-vprofile" onchange="rebuild()">
+                      <option value="">— None —</option>
+                      <option value="baseline">baseline</option>
+                      <option value="constrained_baseline">constrained_baseline</option>
+                      <option value="main">main</option>
+                      <option value="main10">main10</option>
+                      <option value="main12">main12</option>
+                      <option value="mainstillpicture">mainstillpicture</option>
+                      <option value="high">high</option>
+                      <option value="high10">high10</option>
+                      <option value="high422">high422</option>
+                      <option value="high444">high444</option>
+                      <option value="high444p">high444p</option>
+                      <option value="rext">rext</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <div class="field-label">Frame Size</div>
+                    <select id="f-frameSize" onchange="onFrameSizeChange()">
+                      <option value="original">Original</option>
+                      <option value="1920x1080">1920×1080</option>
+                      <option value="1280x720">1280×720</option>
+                      <option value="720x576">720×576 (PAL)</option>
+                      <option value="720x480">720×480 (NTSC)</option>
+                      <option value="custom">Custom…</option>
+                    </select>
+                  </div>
+                  <div class="field" id="customFrameSizeField" style="display:none">
+                    <div class="field-label">Custom Size</div>
+                    <input type="text" id="f-customFrameSize" placeholder="1280x720" oninput="rebuild()">
+                  </div>
+                  <div class="field">
+                    <div class="field-label">FPS</div>
+                    <select id="f-fps" onchange="onFpsChange()">
+                      <option value="original">Original</option>
+                      <option value="25">25</option>
+                      <option value="29.97">29.97</option>
+                      <option value="30">30</option>
+                      <option value="50">50</option>
+                      <option value="59.94">59.94</option>
+                      <option value="60">60</option>
+                      <option value="custom">Custom…</option>
+                    </select>
+                  </div>
+                  <div class="field" id="customFpsField" style="display:none">
+                    <div class="field-label">Custom FPS</div>
+                    <input type="text" id="f-customFps" placeholder="24" oninput="rebuild()">
+                  </div>
+                  <div class="field">
+                    <div class="field-label">GOP</div>
+                    <input type="text" id="f-gop" value="50" placeholder="50" oninput="rebuild()">
+                  </div>
+                  <div class="field">
+                    <div class="field-label">Bitrate Mode</div>
+                    <select id="f-bitrateMode" onchange="onBitrateModeChange()">
+                      <option value="cbr">CBR</option>
+                      <option value="vbr">VBR</option>
+                      <option value="crf">CRF</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <div class="field-label" id="bitrate-label">Bitrate</div>
+                    <input type="text" id="f-bitrate" value="4M" placeholder="4M" oninput="rebuild()">
+                  </div>
+                  <div class="field" id="maxrateField" style="display:none">
+                    <div class="field-label">Max Rate</div>
+                    <input type="text" id="f-maxrate" placeholder="6M" oninput="rebuild()">
+                  </div>
+                  <div class="field" id="bufsizeField" style="display:none">
+                    <div class="field-label">Buffer Size</div>
+                    <input type="text" id="f-bufsize" placeholder="8M" oninput="rebuild()">
+                  </div>
+                  <!-- Advanced sub-section -->
+                  
+                  <div class="field">
+                    <div class="field-label">Deinterlace <span class="field-hint">(-filter:v)</span></div>
+                    <select id="f-deinterlaceFilter" onchange="rebuild()">
+                      <option value="">— Off —</option>
+                      <option value="yadif">yadif (CPU)</option>
+                      <option value="bwdif">bwdif (CPU, higher quality)</option>
+                      <option value="yadif_cuda">yadif_cuda (GPU — requires HW Accel Output: cuda)</option>
+                      <option value="bwdif_cuda">bwdif_cuda (GPU — requires HW Accel Output: cuda)</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <div class="field-label">NVDEC Deinterlace <span class="field-hint">(-deint)</span></div>
+                    <select id="f-nvdecDeint" onchange="rebuild()">
+                      <option value="">— Off —</option>
+                      <option value="1">1 — Bob (frame-rate)</option>
+                      <option value="2">2 — Adaptive</option>
+                    </select>
+                  </div>
+                  <div class="field toggle-field">
+                    <div class="toggle-wrap" id="tog-forcedIdr" onclick="toggleField('forcedIdr')">
+                      <div class="toggle-track" id="track-forcedIdr">
+                        <div class="toggle-thumb"></div>
+                      </div>
+                      <span class="toggle-label">Force IDR</span>
+
+                    </div>
+                  </div>
+                  <div class="section subsection full">
+                    <div class="section-header subsection-header collapsed" onclick="toggleSection(this)">Advanced Video Encoding and Color<span class="collapse-icon">&#9660;</span></div>
+                    <div class="section-body collapsed">
+                      <div class="field">
+                        <div class="field-label">Scene Ch. Thr. <span class="field-hint">(-sc_threshold)</span></div>
+                        <input type="text" id="f-scThreshold" placeholder="0" oninput="rebuild()">
+                      </div>
+                      <div class="field">
+                        <div class="field-label">B-Frames <span class="field-hint">(-bf)</span></div>
+                        <input type="text" id="f-bframes" placeholder="2" oninput="rebuild()">
+                      </div>
+                      <div class="field">
+                        <div class="field-label">Ref Frames <span class="field-hint">(-refs)</span></div>
+                        <input type="text" id="f-refs" placeholder="3" oninput="rebuild()">
+                      </div>
+                      <div class="field">
+                        <div class="field-label">Pixel Format</div>
+                        <select id="f-pixFmt" onchange="rebuild()">
+                          <option value="">— Default —</option>
+                          <option value="yuv420p">yuv420p</option>
+                          <option value="yuv422p">yuv422p</option>
+                          <option value="yuv444p">yuv444p</option>
+                          <option value="yuv420p10le">yuv420p10le (10-bit)</option>
+                          <option value="yuv422p10le">yuv422p10le (10-bit)</option>
+                          <option value="nv12">nv12 (GPU)</option>
+                          <option value="p010le">p010le (GPU 10-bit)</option>
+                        </select>
+                      </div>
+                      <div class="field full">
+                        <div class="field-label">Video BSF <span class="field-hint">(-bsf:v)</span></div>
+                        <select id="f-bsfVideo" onchange="rebuild()">
+                          <option value="none">— None —</option>
+                          <option value="h264_mp4toannexb">h264_mp4toannexb</option>
+                          <option value="hevc_mp4toannexb">hevc_mp4toannexb</option>
+                          <option value="mpeg4_unpack_bframes">mpeg4_unpack_bframes</option>
+                        </select>
+                      </div>
+                      <div class="field">
+                        <div class="field-label">Level <span class="field-hint">(-level:v)</span></div>
+                        <select id="f-level" onchange="rebuild()">
+                          <option value="">— Auto —</option>
+                          <option value="3.0">3.0</option>
+                          <option value="3.1">3.1</option>
+                          <option value="4.0">4.0</option>
+                          <option value="4.1">4.1 (1080p50)</option>
+                          <option value="4.2">4.2</option>
+                          <option value="5.0">5.0</option>
+                          <option value="5.1">5.1</option>
+                        </select>
+                      </div>
+                      <div class="field">
+                        <div class="field-label">Field Order</div>
+                        <select id="f-fieldOrder" onchange="rebuild()">
+                          <option value="">— Auto —</option>
+                          <option value="progressive">progressive</option>
+                          <option value="tt">tt (top-first)</option>
+                          <option value="bb">bb (bottom-first)</option>
+                          <option value="tb">tb</option>
+                          <option value="bt">bt</option>
+                        </select>
+                      </div>
+                      <div class="field">
+                        <div class="field-label">Color Primaries</div>
+                        <select id="f-colorPrimaries" onchange="rebuild()">
+                          <option value="">— Auto —</option>
+                          <option value="bt709">bt709 (HD)</option>
+                          <option value="bt2020">bt2020 (UHD/HDR)</option>
+                          <option value="smpte170m">smpte170m (SD)</option>
+                          <option value="smpte432">smpte432</option>
+                          <option value="film">film</option>
+                        </select>
+                      </div>
+                      <div class="field">
+                        <div class="field-label">Transfer Chars.</div>
+                        <select id="f-colorTrc" onchange="rebuild()">
+                          <option value="">— Auto —</option>
+                          <option value="bt709">bt709</option>
+                          <option value="smpte2084">smpte2084 (PQ/HDR10)</option>
+                          <option value="arib-std-b67">arib-std-b67 (HLG)</option>
+                          <option value="linear">linear</option>
+                          <option value="iec61966-2-1">iec61966-2-1 (sRGB)</option>
+                        </select>
+                      </div>
+                      <div class="field">
+                        <div class="field-label">Color Space</div>
+                        <select id="f-colorspace" onchange="rebuild()">
+                          <option value="">— Auto —</option>
+                          <option value="bt709">bt709</option>
+                          <option value="bt2020nc">bt2020nc (UHD)</option>
+                          <option value="bt2020c">bt2020c</option>
+                          <option value="smpte170m">smpte170m (SD)</option>
+                          <option value="smpte240m">smpte240m</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div><!-- /nested section-body -->
+              </div><!-- /videoOptionsBlock -->
+            </div>
+          </div>
+
+          <!-- Card: Audio Encoding -->
+          <div class="section card-audio">
+            <div class="section-header" onclick="toggleSection(this)">Audio Encoding <span
+                class="collapse-icon">▾</span></div>
+            <div class="section-body">
+              <div class="field full">
+                <div class="field-label">Audio Codec</div>
+                <select id="f-audioCodec" onchange="onAudioCodecChange()">
+                  <option value="disabled">Disabled (-an)</option>
+                  <option value="copy" selected>copy (passthrough)</option>
+                  <option value="aac">aac</option>
+                  <option value="libmp3lame">libmp3lame (MP3)</option>
+                  <option value="mp2">mp2 (MPEG-1 Layer II)</option>
+                  <option value="libtwolame">libtwolame (MP2 HQ)</option>
+                  <option value="ac3">ac3 (Dolby)</option>
+                  <option value="eac3">eac3 (Dolby+)</option>
+                  <option value="libopus">libopus</option>
+                </select>
+              </div>
+              <div class="field full" id="audioOptionsBlock" style="display:none">
+                <div class="section-body">
+                  <div class="field">
+                    <div class="field-label">Sample Rate</div>
+                    <select id="f-sampleRate" onchange="rebuild()">
+                      <option value="original">Original</option>
+                      <option value="44100">44100 Hz</option>
+                      <option value="48000">48000 Hz</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <div class="field-label">Channels</div>
+                    <select id="f-channels" onchange="rebuild()">
+                      <option value="original">Original</option>
+                      <option value="mono">Mono (1)</option>
+                      <option value="stereo">Stereo (2)</option>
+                      <option value="5.1">5.1 (6)</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <div class="field-label">Audio Bitrate</div>
+                    <select id="f-audioBitrate" onchange="rebuild()">
+                      <option value="default">Default</option>
+                      <option value="64k">64k</option>
+                      <option value="96k">96k</option>
+                      <option value="128k">128k</option>
+                      <option value="192k">192k</option>
+                      <option value="256k">256k</option>
+                      <option value="320k">320k</option>
+                    </select>
+                  </div>
+                  <!-- Audio Advanced sub-section -->
+                  <div class="section subsection full">
+                    <div class="section-header subsection-header collapsed" onclick="toggleSection(this)">Advanced <span
+                        class="collapse-icon">&#9660;</span></div>
+                    <div class="section-body collapsed">
+                      <div class="field">
+                        <div class="field-label">Audio BSF <span class="field-hint">(-bsf:a)</span></div>
+                        <select id="f-bsfAudio" onchange="rebuild()">
+                          <option value="none">— None —</option>
+                          <option value="aac_adtstoasc">aac_adtstoasc</option>
+                        </select>
+                      </div>
+                      <div class="field">
+                        <div class="field-label">Dialnorm <span class="field-hint">(-31&hellip;-1 dBFS)</span></div>
+                        <input type="text" id="f-dialnorm" placeholder="-24" oninput="rebuild()">
+                      </div>
+                    </div>
+                  </div>
+                </div><!-- /nested section-body -->
+              </div><!-- /audioOptionsBlock -->
+            </div>
+          </div>
+
+
+          <!-- Card: Extra Flags -->
+          <div class="section">
+            <div class="section-header collapsed" onclick="toggleSection(this)">Extra Flags <span
+                class="collapse-icon">▾</span></div>
+            <div class="section-body collapsed">
+              <div class="field full">
+                <div class="field-label">Pre-Input <span class="field-hint">before <code>-i</code></span></div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+                  <input type="text" id="f-passthroughPreInput" class="code-input"
+                    placeholder="-analyzeduration 10000000 -probesize 5000000" oninput="rebuild()" spellcheck="false"
+                    autocomplete="off">
+                  <div class="field-desc">Flags before the input, e.g. <code>-rtsp_transport tcp</code>,
+                    <code>-timeout 5000000</code>.</div>
+                </div>
+              </div>
+              <div class="field full">
+                <div class="field-label">Post-Input <span class="field-hint">before <code>${o}</code></span></div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+                  <input type="text" id="f-passthroughPostInput" class="code-input"
+                    placeholder="-x265-params keyint=50 -metadata title=&quot;My Channel&quot;" oninput="rebuild()"
+                    spellcheck="false" autocomplete="off">
+                  <div class="field-desc">Any output flags not covered by the Constructor. Injected verbatim.</div>
+                </div>
+              </div>
+              <div class="field full">
+                <div style="font-size:10px;color:#aaa;grid-column:1/-1">Custom flags survive &ldquo;Parse to
+                  Constructor&rdquo; and are not validated by the form.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card: Senta Variables -->
+          <div class="section card-vars">
+            <div class="section-header accent" onclick="toggleSection(this)">Senta Variables (WHERE) <span
+                class="collapse-icon">▾</span></div>
+            <div class="section-body" style="display:block">
+              <div class="var-list" id="var-list">
+                <div class="var-empty" id="var-empty">No custom variables. Click "Add Variable" to parameterize values.
+                </div>
+              </div>
+              <button class="add-var-btn" onclick="addVariable()">＋ Add Variable</button>
+            </div>
+          </div>
+
+        </div><!-- /form-col -->
+
+        <!-- PREVIEW COLUMN -->
+        <div class="preview-col">
+          <div class="preview-sticky">
+            <div class="preview-box">
+              <pre class="preview-code" id="preview-code"></pre>
+              <div class="preview-actions">
+                <button class="btn-outline-purple" onclick="copyCommand()" id="copy-btn">📋 Copy</button>
+                <button class="btn-purple-sm" onclick="switchTab('manual')">Editor →</button>
+              </div>
+            </div>
+
+            <div class="alerts" id="alerts-area"></div>
+
+            <div class="save-area">
+              <button class="btn-primary" id="save-btn" onclick="saveCurrentProfile()">Save Profile</button>
+              <button class="btn-cancel" onclick="goBackToList()">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /content -->
+
+      <!-- MANUAL EDITOR TAB -->
+      <div id="panel-manual" class="manual-wrap hidden">
+        <div class="manual-form">
+          <div class="manual-field">
+            <label class="manual-label" for="manual-name">Name</label>
+            <input type="text" id="manual-name" placeholder="My Profile" oninput="state.name=this.value;doRebuild()">
+          </div>
+          <div class="manual-field">
+            <label class="manual-label" for="manual-textarea">FFmpeg command</label>
+            <div class="manual-box">
+              <textarea class="manual-textarea" id="manual-textarea" spellcheck="false"
+                placeholder="ffmpeg -y -hide_banner -i ${i} -c:v copy -c:a copy -f mpegts ${o}"></textarea>
+            </div>
+            <div class="manual-hint">Write a command, add input as <code>${i}</code>... outputs as <code>${o}</code>.
+            </div>
+          </div>
+        </div>
+        <div class="manual-actions">
+          <button class="btn-cancel" onclick="goBackToList()">Cancel</button>
+          <button class="btn-primary" style="max-width:120px" id="manual-save-btn"
+            onclick="saveFromManual()">Save</button>
+          <button class="btn-secondary" style="max-width:220px" onclick="parseFromManual()">↩ Parse to
+            Constructor</button>
+        </div>
+      </div>
+
+    </div><!-- /view-editor -->
+  </div><!-- /main -->
+
+  <script type="module" src="senta_ffmpeg_constructor.js"></script>
+</body>
+
+</html>
