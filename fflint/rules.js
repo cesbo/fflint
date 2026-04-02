@@ -69,13 +69,13 @@ export const rules = [
   {
     id: 'nvenc_no_hwaccel', group: 'hwaccel_mismatch', layer: 2,
     severity: 'error', flag: '-hwaccel',
-    check: (s) => NVENC_CODECS.includes(s.videoCodec) && s.hwaccel !== 'cuda',
+    check: (s) => NVENC_CODECS.includes(s.videoCodec) && s.hwaccel !== undefined && s.hwaccel !== 'cuda',
     message: 'NVENC codec requires -hwaccel cuda — without it the decode pipeline runs on CPU, negating the GPU advantage. Set HW Accel to "cuda"',
   },
   {
     id: 'vaapi_wrong_hwaccel', group: 'hwaccel_mismatch', layer: 2,
     severity: 'warning', flag: '-hwaccel',
-    check: (s) => VAAPI_CODECS.includes(s.videoCodec) && s.hwaccel !== 'vaapi',
+    check: (s) => VAAPI_CODECS.includes(s.videoCodec) && s.hwaccel !== undefined && s.hwaccel !== 'vaapi',
     message: 'VAAPI codec requires -hwaccel vaapi',
   },
   {
@@ -209,13 +209,13 @@ export const rules = [
   {
     id: 'ts_flags_on_non_ts', group: 'container_flag_mismatch', layer: 2,
     severity: 'warning',
-    check: (s) => s.outputFormat !== 'mpegts' && !!(s.mpegtsServiceId ?? s.mpegtsPmtStartPid ?? s.pcrPeriod),
+    check: (s) => s.outputFormat !== undefined && s.outputFormat !== 'mpegts' && !!(s.mpegtsServiceId ?? s.mpegtsPmtStartPid ?? s.pcrPeriod),
     message: 'MPEG-TS flags have no effect on non-MPEG-TS output formats',
   },
   {
     id: 'hls_flags_on_non_hls', group: 'container_flag_mismatch', layer: 2,
     severity: 'warning',
-    check: (s) => s.outputFormat !== 'hls' && !!(s.hlsTime ?? s.hlsListSize ?? s.hlsFlags?.length),
+    check: (s) => s.outputFormat !== undefined && s.outputFormat !== 'hls' && !!(s.hlsTime ?? s.hlsListSize ?? s.hlsFlags?.length),
     message: 'HLS flags have no effect on non-HLS output formats',
   },
   {
@@ -529,7 +529,7 @@ export const rules = [
   {
     id: 'listen_non_streaming_format', group: 'listen_mode', layer: 2,
     severity: 'warning', flag: '-listen',
-    check: (s) => s.listen === 1 && s.outputFormat !== 'mpegts' && s.outputFormat !== 'flv',
+    check: (s) => s.listen === 1 && s.outputFormat !== undefined && s.outputFormat !== 'mpegts' && s.outputFormat !== 'flv',
     message: (s) => `-listen 1 (TCP server mode) is primarily used with MPEG-TS or FLV output — "${s.outputFormat}" over a raw TCP socket is uncommon and may not be usable by standard players`,
   },
   {
