@@ -2,7 +2,7 @@
 // profiles, then print a structured report.
 // Usage:  node fflint_test.mjs
 
-import { validate } from './fflint/fflint.js'
+import { validate } from '../fflint/fflint.js'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -378,6 +378,20 @@ printResults(
 )
 
 
+// A13 ────────────────────────────────────────────────────────────────────────
+// ffmpeg -i udp://... -c:v h264_nvenc -f mpegts udp://out:5000
+// Simulates a "starting profile": user picked NVENC codec but hwaccel, preset,
+// bitrate etc. are not entered yet. fflint must not fire false positives.
+printResults(
+  'A13 · Starting profile — h264_nvenc selected, hwaccel not set yet (partial state)',
+  {
+    inputType:    'udp',
+    videoCodec:   'h264_nvenc',
+    outputFormat: 'mpegts',
+  },
+  'VALID'
+)
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION B – 12 DELIBERATELY INVALID FFMPEG COMMAND PROFILES
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -645,6 +659,21 @@ printResults(
     pixFmt:        'yuv444p',   // ← WRONG: VAAPI only supports nv12/p010le
     audioCodec:    'aac',
     outputFormat:  'mpegts',
+  },
+  'INVALID'
+)
+
+// B15 ────────────────────────────────────────────────────────────────────────
+// BUG: ffmpeg -y -hide_banner -i ${i} -c:v -c:a copy -g mpegts ${o}
+// Two bugs: -c:v has no value (videoCodec missing); -g mpegts passes a format
+// name as the GOP integer value.
+printResults(
+  'B15 · -c:v missing value + -g mpegts (format name used as GOP integer)',
+  {
+    inputType:    'udp',
+    audioCodec:   'copy',
+    gop:          'mpegts',   // ← WRONG: -g expects a positive integer, not a format name
+    outputFormat: 'mpegts',
   },
   'INVALID'
 )

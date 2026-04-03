@@ -336,6 +336,16 @@ export const rules = [
   // ── Layer 2: CBR/VBR bitrate completeness ──────────────────────────────────
 
   {
+    id: 'no_rate_control', group: 'bitrate_completeness', layer: 2,
+    severity: 'warning', flag: '-b:v/-crf',
+    check: (s) => {
+      if (s.bitrateMode) return false
+      if (!s.videoCodec || s.videoCodec === 'copy' || s.videoCodec === 'disabled') return false
+      return true
+    },
+    message: 'No rate control specified — encoder will use internal defaults, which may produce unpredictable bitrate. Set -b:v (CBR/VBR) or -crf (quality-based) for reliable output',
+  },
+  {
     id: 'cbr_no_bitrate', group: 'bitrate_completeness', layer: 2,
     severity: 'error', flag: '-b:v',
     check: (s) => {

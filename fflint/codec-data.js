@@ -166,7 +166,7 @@ export const VALID_NVDEC_DEINT            = [0, 1, 2]  // 0=weave (off), 1=bob, 
  */
 export function parseBitrate(s) {
   if (s === undefined || s === null) return null
-  const m = String(s).match(/^(\d+(?:\.\d+)?)([kKmMgG]?)$/)
+  const m = String(s).trim().match(/^(\d+(?:\.\d+)?)([kKmMgG]?)$/)
   if (!m) return null
   const n = parseFloat(m[1])
   const suffix = m[2].toLowerCase()

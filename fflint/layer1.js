@@ -40,7 +40,9 @@ export function validateLayer1(s) {
     ...validateEnum(s, 'hlsSegmentType',      'l1_hls_seg_type',        '-hls_segment_type',      VALID_HLS_SEG_TYPES,          'HLS segment type'),
     ...validateEnum(s, 'avoidNegativeTs',     'l1_avoid_neg_ts',        '-avoid_negative_ts',     VALID_AVOID_NEG_TS,           'Avoid negative timestamps'),
     ...validateEnum(s, 'deinterlaceFilter',   'l1_deinterlace_filter',  '-filter:v',              VALID_DEINTERLACE_FILTERS,    'Deinterlace filter'),
-    ...validateEnum(s, 'scaleFilter',         'l1_scale_filter',        '-filter:v',              VALID_SCALE_FILTERS,          'Scale filter'),    ...validateNvdecDeint(s),    // ── Array / multi-select enum validators ─────────────────────────────────
+    ...validateEnum(s, 'scaleFilter',         'l1_scale_filter',        '-filter:v',              VALID_SCALE_FILTERS,          'Scale filter'),
+    ...validateNvdecDeint(s),
+    // ── Array / multi-select enum validators ─────────────────────────────────
     ...validateArrayEnum(s, 'fflags',         'l1_fflags',              '-fflags',                VALID_FFLAGS,                 'Input flag'),
     ...validateArrayEnum(s, 'mpegtsFlags',    'l1_mpegts_flags',        '-mpegts_flags',          VALID_MPEGTS_FLAGS,           'MPEG-TS flag'),
     ...validateArrayEnum(s, 'hlsFlags',       'l1_hls_flags',           '-hls_flags',             VALID_HLS_FLAGS,              'HLS flag'),
@@ -402,6 +404,9 @@ export function validateGop(s) {
 export function validateCrf(s) {
   if (s.bitrateMode !== 'crf' || s.crfValue === undefined || !s.videoCodec) return []
   const HINT = 'Lower = better quality, larger file. H.264 typical: 18–28, recommended: 23. HEVC typical: 22–32, recommended: 28. AV1 typical: 20–40, recommended: 30'
+  if (!Number.isFinite(s.crfValue))
+    return [err('l1_crf', 'l1_crf', '-crf',
+      'CRF value must be a valid number', HINT)]
   const range = CRF_RANGE[s.videoCodec]
   if (!range) return []
   const [min, max] = range

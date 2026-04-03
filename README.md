@@ -14,14 +14,15 @@ fflint is designed to be embedded into any UI that builds or edits FFmpeg comman
 2. [Installation & Import](#2-installation--import)  
 3. [Quick Start](#3-quick-start)  
 4. [API Reference](#4-api-reference)  
-5. [State Object Schema](#5-state-object-schema)  
-6. [Result Object Schema](#6-result-object-schema)  
-7. [Validation Layers Explained](#7-validation-layers-explained)  
-8. [Using `codec-data.js` for UI Dropdowns](#8-using-codec-datajs-for-ui-dropdowns)  
-9. [Custom Rules](#9-custom-rules)  
-10. [Integration Patterns](#10-integration-patterns)  
-11. [File Reference](#11-file-reference)  
-12. [Examples](#12-examples)
+5. [Raw Command Validation (`validateRaw`)](#5-raw-command-validation-validateraw)  
+6. [State Object Schema](#6-state-object-schema)  
+7. [Result Object Schema](#7-result-object-schema)  
+8. [Validation Layers Explained](#8-validation-layers-explained)  
+9. [Using `codec-data.js` for UI Dropdowns](#9-using-codec-datajs-for-ui-dropdowns)  
+10. [Custom Rules](#10-custom-rules)  
+11. [Integration Patterns](#11-integration-patterns)  
+12. [File Reference](#12-file-reference)  
+13. [Examples](#13-examples)
 
 ---
 
@@ -67,9 +68,14 @@ All three layers produce the same result shape. Results are **deduplicated by gr
 ```
 fflint/
 ├── fflint.js        — Public API: validate()
+├── validate-raw.js  — Raw command string validator: validateRaw()
 ├── layer1.js        — Layer 1 validators (field-level)
 ├── rules.js         — Layer 2 + 3 rule definitions
 └── codec-data.js    — Enums, codec families, utility functions
+tests/
+├── fflint_test.mjs  — Main test suite (state-based validate)
+├── test_fixes.mjs   — Regression tests for validateRaw fixes
+└── test_harden.mjs  — Edge case tests for structural validation
 ```
 
 ---
@@ -192,7 +198,100 @@ function validate(
 
 ---
 
-## 5. State Object Schema
+## 5. Raw Command Validation (`validateRaw`)
+
+`validateRaw()` accepts a complete FFmpeg command string and validates it without requiring a pre-built state object. It parses the command, builds the internal state, runs all three validation layers, and adds **structural checks** that only apply to raw text.
+
+### Import
+
+```js
+import { validateRaw } from './fflint/validate-raw.js'
+```
+
+### Usage
+
+```js
+const results = validateRaw(
+  'ffmpeg -y -hide_banner -re -i ${i} -c:v libx264 -preset medium -b:v 4M -c:a aac -f mpegts ${o}'
+)
+
+if (results.length === 0) {
+  console.log('No issues found')
+} else {
+  for (const r of results) {
+    console.log(`[${r.severity}] ${r.message}`)
+  }
+}
+```
+
+### Signature
+
+```ts
+function validateRaw(
+  rawText: string,
+  options?: { broadcastRules?: boolean }
+): Result[]
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `rawText` | `string` | — | Full FFmpeg command string (e.g. `'ffmpeg -i input.ts -c:v copy -f mpegts output.ts'`) |
+| `options.broadcastRules` | `boolean` | `true` | Include Layer 3 broadcast rules |
+
+### Structural checks (beyond Layer 1–3)
+
+`validateRaw` performs additional text-level structural analysis that is not possible with the state-based `validate()` API:
+
+| Check | Severity | Description |
+|-------|----------|-------------|
+| **Flag ordering** | `warning` | Output/encoding flags (e.g. `-preset`, `-b:v`) placed before `-i`, or input flags (e.g. `-hwaccel`, `-re`) placed after `-i` |
+| **Options after output** | `error` | Flags appearing after the output target are not applied by FFmpeg |
+| **Missing output** | `error` | No output file/URL specified |
+| **Format/extension mismatch** | `warning` | `-f mpegts` but output is `output.mp4` |
+| **Duplicate flags** | `warning`/`info` | Same flag with different values → warning (last wins); same value → info (redundant) |
+| **Multi-input without map** | `warning` | Multiple `-i` inputs without any `-map` flags |
+| **Pipe I/O advisory** | `info` | Detects `-i -` / `pipe:0` input or `-` / `pipe:1` output |
+| **Missing-value flag** | `error` | A flag that expects a value is at end of command or followed by another flag |
+| **Unknown flags** | `warning` | Flags not in the known set |
+| **Missing-dash typo** | `warning` | Bare tokens that look like flags without their leading dash (e.g. `c:a` instead of `-c:a`) |
+| **Conflicting flags** | `error` | `-vn` + `-c:v`, `-an` + `-c:a`, `-crf` + `-b:v` |
+
+### Dual-use flags
+
+`-c:v` and `-c:a` are exempt from ordering checks because they can legitimately appear both before `-i` (as decoder hints) and after `-i` (as encoder selection).
+
+### Global flags
+
+`-y`, `-hide_banner`, `-nostdin`, `-loglevel`, `-v`, and `-copyts` may appear anywhere without triggering ordering warnings.
+
+### Template variables
+
+`${i}` and `${o}` are recognized as input/output placeholders (Senta convention) and handled transparently.
+
+### Example output
+
+```js
+validateRaw('ffmpeg -preset fast -i ${i} -c:v libx264 -b:v 4M -c:a aac -f mpegts ${o}')
+// → [
+//   { severity: 'warning', message: '-preset is an output/encoding flag but appears before -i — it should be placed after the input' },
+//   ...
+// ]
+
+validateRaw('ffmpeg -i ${i} -c:v libx264 -b:v 4M -c:a aac -f mpegts output.ts -g 50')
+// → [
+//   { severity: 'error', message: '-g appears after the output target — options after output are not applied by FFmpeg' },
+// ]
+
+validateRaw('ffmpeg -i ${i} -c:v h264_nvenc c:a copy -f mpegts ${o}')
+// → [
+//   { severity: 'warning', message: '"c:a" looks like a flag missing its dash — did you mean "-c:a"?' },
+//   ...
+// ]
+```
+
+---
+
+## 6. State Object Schema
 
 Every field is optional. Only set the fields that are relevant to the current profile. fflint will skip validation for any field that is `undefined`.
 
@@ -314,7 +413,7 @@ Every field is optional. Only set the fields that are relevant to the current pr
 
 ---
 
-## 6. Result Object Schema
+## 7. Result Object Schema
 
 Each result returned by `validate()` has the following shape:
 
@@ -362,7 +461,7 @@ You can display `hint` as tooltip text, a secondary line in the alert card, or c
 
 ---
 
-## 7. Validation Layers Explained
+## 8. Validation Layers Explained
 
 ### Layer 1 — Field-level validation (`layer1.js`)
 
@@ -408,7 +507,7 @@ const results = validate(state, { broadcastRules: false })
 
 ---
 
-## 8. Using `codec-data.js` for UI Dropdowns
+## 9. Using `codec-data.js` for UI Dropdowns
 
 `codec-data.js` is the **single source of truth** for all valid enum values. Import its exports to populate your UI dropdowns, ensuring the form and the validator always agree.
 
@@ -465,7 +564,7 @@ function getCrfRange(codec) {
 
 ---
 
-## 9. Custom Rules
+## 10. Custom Rules
 
 Extend fflint with your own rules without modifying its source files. Custom rules follow the same shape as built-in rules:
 
@@ -515,7 +614,7 @@ const results = validate(state, { customRules: myRules })
 
 ---
 
-## 10. Integration Patterns
+## 11. Integration Patterns
 
 ### Pattern A: Real-time form validation
 
@@ -603,13 +702,19 @@ const results = validate(state, { broadcastRules: false })
 
 ---
 
-## 11. File Reference
+## 12. File Reference
 
 ### `fflint.js`
 
 | Export | Description |
 |--------|-------------|
 | `validate(state, options?)` | Main entry point. Returns `Result[]`. |
+
+### `validate-raw.js`
+
+| Export | Description |
+|--------|-------------|
+| `validateRaw(rawText, options?)` | Parses a raw FFmpeg command string, runs structural checks + all three validation layers, and returns `Result[]`. See [§5](#5-raw-command-validation-validateraw). |
 
 ### `layer1.js`
 
@@ -644,7 +749,7 @@ const results = validate(state, { broadcastRules: false })
 
 ---
 
-## 12. Examples
+## 13. Examples
 
 ### Example 1: Minimal valid IPTV profile
 
