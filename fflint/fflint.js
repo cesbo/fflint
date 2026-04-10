@@ -3,7 +3,11 @@ import { rules }          from './rules.js'
 import { validateLayer1 } from './layer1.js'
 
 /** Library version number */
-export const VERSION = '1.1.0'
+export const VERSION = '1.2.0'
+
+// Re-export parse and serialize for convenience
+export { parse } from './parse.js'
+export { serialize } from './serialize.js'
 
 /**
  * Validate an FFmpeg profile state object.
