@@ -14,15 +14,17 @@ fflint is designed to be embedded into any UI that builds or edits FFmpeg comman
 2. [Installation & Import](#2-installation--import)  
 3. [Quick Start](#3-quick-start)  
 4. [API Reference](#4-api-reference)  
-5. [Raw Command Validation (`validateRaw`)](#5-raw-command-validation-validateraw)  
-6. [State Object Schema](#6-state-object-schema)  
-7. [Result Object Schema](#7-result-object-schema)  
-8. [Validation Layers Explained](#8-validation-layers-explained)  
-9. [Using `codec-data.js` for UI Dropdowns](#9-using-codec-datajs-for-ui-dropdowns)  
-10. [Custom Rules](#10-custom-rules)  
-11. [Integration Patterns](#11-integration-patterns)  
-12. [File Reference](#12-file-reference)  
-13. [Examples](#13-examples)
+5. [Parsing FFmpeg Commands (`parse`)](#5-parsing-ffmpeg-commands-parse)  
+6. [Serializing State to FFmpeg Commands (`serialize`)](#6-serializing-state-to-ffmpeg-commands-serialize)  
+7. [Raw Command Validation (`validateRaw`)](#7-raw-command-validation-validateraw)  
+8. [State Object Schema](#8-state-object-schema)  
+9. [Result Object Schema](#9-result-object-schema)  
+10. [Validation Layers Explained](#10-validation-layers-explained)  
+11. [Using `codec-data.js` for UI Dropdowns](#11-using-codec-datajs-for-ui-dropdowns)  
+12. [Custom Rules](#12-custom-rules)  
+13. [Integration Patterns](#13-integration-patterns)  
+14. [File Reference](#14-file-reference)  
+15. [Examples](#15-examples)
 
 ---
 
@@ -67,15 +69,23 @@ All three layers produce the same result shape. Results are **deduplicated by gr
 
 ```
 fflint/
-├── fflint.js        — Public API: validate()
+├── fflint.js        — Public API: validate(), parse(), serialize()
+├── parse.js         — Parser: FFmpeg command string → fflint state object
+├── serialize.js     — Serializer: fflint state object → FFmpeg command string
 ├── validate-raw.js  — Raw command string validator: validateRaw()
 ├── layer1.js        — Layer 1 validators (field-level)
 ├── rules.js         — Layer 2 + 3 rule definitions
 └── codec-data.js    — Enums, codec families, utility functions
 tests/
-├── fflint_test.mjs  — Main test suite (state-based validate)
-├── test_fixes.mjs   — Regression tests for validateRaw fixes
-└── test_harden.mjs  — Edge case tests for structural validation
+├── fflint_test.mjs          — Main test suite (state-based validate)
+├── test_fixes.mjs           — Regression tests for validateRaw fixes
+├── test_harden.mjs          — Edge case tests for structural validation
+└── test_parse_serialize.mjs — Parse/serialize round-trip tests (201 assertions)
+examples/
+├── example_parse.mjs           — Parse a command string into a state object
+├── example_serialize.mjs       — Build a command string from a state object
+├── example_roundtrip.mjs       — Full round-trip: parse → validate → fix → serialize
+└── example_form_integration.mjs — Simulated form UI integration
 ```
 
 ---
@@ -88,14 +98,14 @@ fflint is a set of ES modules. No build step, no bundler, no dependencies.
 
 ```html
 <script type="module">
-  import { validate } from './fflint/fflint.js'
+  import { validate, parse, serialize } from './fflint/fflint.js'
 </script>
 ```
 
 ### Bundled app (Vite, Webpack, Rollup, etc.)
 
 ```js
-import { validate } from './fflint/fflint.js'
+import { validate, parse, serialize } from './fflint/fflint.js'
 ```
 
 ### Optional: import codec data for UI population
@@ -111,12 +121,20 @@ import {
 } from './fflint/codec-data.js'
 ```
 
+### Direct module imports (alternative)
+
+```js
+import { parse } from './fflint/parse.js'
+import { serialize } from './fflint/serialize.js'
+import { validateRaw } from './fflint/validate-raw.js'
+```
+
 ---
 
 ## 3. Quick Start
 
 ```js
-import { validate } from './fflint/fflint.js'
+import { validate, parse, serialize } from './fflint/fflint.js'
 
 // Build a state object from your UI form fields
 const state = {
@@ -146,7 +164,15 @@ if (errors.length > 0) {
 }
 ```
 
-**Output for the above state:**
+// Parse an existing command → state → validate → fix → serialize
+const state = parse('ffmpeg -i ${i} -c:v h264_nvenc -preset p4 -b:v 4M -c:a aac -f mpegts ${o}')
+const issues = validate(state)
+state.hwaccel = 'cuda'  // fix issue
+const fixed = serialize(state)
+// → 'ffmpeg -y -hide_banner -hwaccel cuda -i ${i} -c:v h264_nvenc ...'
+```
+
+**Output for the validation above:**
 
 ```js
 [
@@ -190,15 +216,165 @@ function validate(
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `state` | `object` | — | A plain object with FFmpeg profile fields. All fields are optional — only present fields are validated. See [§5](#5-state-object-schema). |
+| `state` | `object` | — | A plain object with FFmpeg profile fields. All fields are optional — only present fields are validated. See [§8](#8-state-object-schema). |
 | `options.broadcastRules` | `boolean` | `true` | When `false`, Layer 3 rules (DVB/IPTV/broadcast best practices) are excluded. Useful for general-purpose or non-broadcast UIs. |
-| `options.customRules` | `Rule[]` | `[]` | Additional rules appended to the built-in set. See [§9](#9-custom-rules). |
+| `options.customRules` | `Rule[]` | `[]` | Additional rules appended to the built-in set. See [§12](#12-custom-rules). |
 
 **Returns:** `Result[]` — an array of diagnostic objects, deduplicated by `group` (highest severity wins). Empty array means no issues found.
 
 ---
 
-## 5. Raw Command Validation (`validateRaw`)
+## 5. Parsing FFmpeg Commands (`parse`)
+
+`parse()` converts a raw FFmpeg command string into a fflint state object — the same schema that `validate()` accepts. This enables a **text → state → form** workflow: load a stored command, populate a form, let the user edit, validate, and serialize back.
+
+### Import
+
+```js
+// Via the main entry point (recommended)
+import { parse } from './fflint/fflint.js'
+
+// Or directly
+import { parse } from './fflint/parse.js'
+```
+
+### Usage
+
+```js
+const state = parse('ffmpeg -y -hide_banner -hwaccel cuda -i ${i} -c:v h264_nvenc -preset p4 -b:v 4M -c:a aac -f mpegts ${o}')
+
+console.log(state.videoCodec)    // 'h264_nvenc'
+console.log(state.preset)        // 'p4'
+console.log(state.bitrateMode)   // 'cbr'
+console.log(state.targetBitrate) // '4M'
+console.log(state.hwaccel)       // 'cuda'
+```
+
+### Signature
+
+```ts
+function parse(rawText: string): object
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `rawText` | `string` | Full FFmpeg command string |
+
+**Returns:** A fflint state object ready for `validate()` or UI binding. Returns `{}` for empty/null input.
+
+### Field mapping
+
+The parser maps FFmpeg flags to fflint state field names:
+
+| FFmpeg flag | State field | Notes |
+|-------------|-------------|-------|
+| `-c:v libx264` | `videoCodec: 'libx264'` | |
+| `-preset p4` | `preset: 'p4'` | |
+| `-profile:v main` | `profile: 'main'` | Note: `profile` not `vprofile` |
+| `-b:v 4M` | `targetBitrate: '4M'` | CBR/VBR mode |
+| `-crf 23` | `crfValue: 23`, `bitrateMode: 'crf'` | CRF mode |
+| `-stream_loop -1` | `streamLoop: true` | |
+| `-use_wallclock_as_timestamps 1` | `useWallclock: true` | |
+| `-analyzeduration 5000000` | `analyzeDuration: 5000000` | Numeric |
+| `-probesize 5000000` | `probeSize: 5000000` | Numeric |
+| `-ac 2` | `channels: '2'` | `'1'`, `'2'`, or `'6'` |
+
+### Bitrate mode detection
+
+The parser automatically detects the bitrate mode from the flags present:
+
+| Flags | Detected mode |
+|-------|---------------|
+| `-crf 23` | `bitrateMode: 'crf'`, `crfValue: 23` |
+| `-b:v 4M` (maxrate equals or absent) | `bitrateMode: 'cbr'`, `targetBitrate: '4M'` |
+| `-b:v 3M -maxrate 5M` (maxrate differs) | `bitrateMode: 'vbr'`, `targetBitrate: '3M'`, `maxrate: '5M'` |
+
+### Unknown flags
+
+Flags not recognized by the parser are preserved in `passthroughPreInput` (before `-i`) and `passthroughPostInput` (after `-i`) arrays. These are round-tripped through `serialize()`.
+
+### Template variables
+
+`${i}` and `${o}` are recognized as Senta input/output placeholders and handled transparently. They do not affect input type detection (default: `'udp'`).
+
+---
+
+## 6. Serializing State to FFmpeg Commands (`serialize`)
+
+`serialize()` converts a fflint state object back into an FFmpeg command string. This completes the round-trip: `parse()` → edit → `serialize()`.
+
+### Import
+
+```js
+// Via the main entry point (recommended)
+import { serialize } from './fflint/fflint.js'
+
+// Or directly
+import { serialize } from './fflint/serialize.js'
+```
+
+### Usage
+
+```js
+const cmd = serialize({
+  videoCodec:    'h264_nvenc',
+  hwaccel:       'cuda',
+  hwaccelOutputFormat: 'cuda',
+  preset:        'p4',
+  bitrateMode:   'cbr',
+  targetBitrate: '4M',
+  gop:           50,
+  audioCodec:    'aac',
+  audioBitrate:  '128k',
+  outputFormat:  'mpegts',
+})
+// → 'ffmpeg -y -hide_banner -hwaccel cuda -hwaccel_output_format cuda -i ${i} -c:v h264_nvenc -preset p4 -g 50 -b:v 4M -maxrate 4M -bufsize 4M -c:a aac -b:a 128k -f mpegts ${o}'
+```
+
+### Signature
+
+```ts
+function serialize(
+  state: object,
+  options?: {
+    inputPlaceholder?: string,   // default: '${i}'
+    outputPlaceholder?: string,  // default: '${o}'
+  }
+): string
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `state` | `object` | — | fflint state object |
+| `options.inputPlaceholder` | `string` | `'${i}'` | Input source placeholder or URL |
+| `options.outputPlaceholder` | `string` | `'${o}'` | Output destination placeholder or URL |
+
+**Returns:** An FFmpeg command string with properly ordered flags.
+
+### Custom placeholders
+
+```js
+const cmd = serialize(state, {
+  inputPlaceholder:  'udp://239.0.0.1:1234',
+  outputPlaceholder: 'udp://192.168.1.1:5000',
+})
+```
+
+### Flag ordering
+
+The serializer follows canonical FFmpeg option ordering:
+
+```
+ffmpeg -y -hide_banner [pre-input flags] -i <input> [-i <logo>] [maps] [video codec/encoding] [audio codec/encoding] -f <format> [muxer opts] <output>
+```
+
+### CBR auto-generation
+
+In CBR mode, `serialize()` automatically generates `-maxrate` and `-bufsize` equal to `-b:v` (strict CBR pattern). If `bufsize` is explicitly set, it uses that value instead.
+
+---
+
+## 7. Raw Command Validation (`validateRaw`)
 
 `validateRaw()` accepts a complete FFmpeg command string and validates it without requiring a pre-built state object. It parses the command, builds the internal state, runs all three validation layers, and adds **structural checks** that only apply to raw text.
 
@@ -291,7 +467,7 @@ validateRaw('ffmpeg -i ${i} -c:v h264_nvenc c:a copy -f mpegts ${o}')
 
 ---
 
-## 6. State Object Schema
+## 8. State Object Schema
 
 Every field is optional. Only set the fields that are relevant to the current profile. fflint will skip validation for any field that is `undefined`.
 
@@ -413,7 +589,7 @@ Every field is optional. Only set the fields that are relevant to the current pr
 
 ---
 
-## 7. Result Object Schema
+## 9. Result Object Schema
 
 Each result returned by `validate()` has the following shape:
 
@@ -461,7 +637,7 @@ You can display `hint` as tooltip text, a secondary line in the alert card, or c
 
 ---
 
-## 8. Validation Layers Explained
+## 10. Validation Layers Explained
 
 ### Layer 1 — Field-level validation (`layer1.js`)
 
@@ -507,7 +683,7 @@ const results = validate(state, { broadcastRules: false })
 
 ---
 
-## 9. Using `codec-data.js` for UI Dropdowns
+## 11. Using `codec-data.js` for UI Dropdowns
 
 `codec-data.js` is the **single source of truth** for all valid enum values. Import its exports to populate your UI dropdowns, ensuring the form and the validator always agree.
 
@@ -564,7 +740,7 @@ function getCrfRange(codec) {
 
 ---
 
-## 10. Custom Rules
+## 12. Custom Rules
 
 Extend fflint with your own rules without modifying its source files. Custom rules follow the same shape as built-in rules:
 
@@ -614,7 +790,7 @@ const results = validate(state, { customRules: myRules })
 
 ---
 
-## 11. Integration Patterns
+## 13. Integration Patterns
 
 ### Pattern A: Real-time form validation
 
@@ -702,19 +878,33 @@ const results = validate(state, { broadcastRules: false })
 
 ---
 
-## 12. File Reference
+## 14. File Reference
 
 ### `fflint.js`
 
 | Export | Description |
 |--------|-------------|
 | `validate(state, options?)` | Main entry point. Returns `Result[]`. |
+| `parse(rawText)` | Re-export from `parse.js`. |
+| `serialize(state, options?)` | Re-export from `serialize.js`. |
+
+### `parse.js`
+
+| Export | Description |
+|--------|-------------|
+| `parse(rawText)` | Parses an FFmpeg command string into a fflint state object. See [§5](#5-parsing-ffmpeg-commands-parse). |
+
+### `serialize.js`
+
+| Export | Description |
+|--------|-------------|
+| `serialize(state, options?)` | Converts a fflint state object into an FFmpeg command string. See [§6](#6-serializing-state-to-command-serialize). |
 
 ### `validate-raw.js`
 
 | Export | Description |
 |--------|-------------|
-| `validateRaw(rawText, options?)` | Parses a raw FFmpeg command string, runs structural checks + all three validation layers, and returns `Result[]`. See [§5](#5-raw-command-validation-validateraw). |
+| `validateRaw(rawText, options?)` | Parses a raw FFmpeg command string, runs structural checks + all three validation layers, and returns `Result[]`. See [§7](#7-raw-command-validation-validateraw). |
 
 ### `layer1.js`
 
@@ -749,7 +939,13 @@ const results = validate(state, { broadcastRules: false })
 
 ---
 
-## 13. Examples
+## 15. Examples
+
+Runnable example scripts are available in the `/examples/` directory:
+- `example_parse.mjs` — Parse a command string and inspect the resulting state
+- `example_serialize.mjs` — Build commands with default and custom placeholders
+- `example_roundtrip.mjs` — Full parse → validate → fix → serialize workflow
+- `example_form_integration.mjs` — Simulated form: parse → populate → change codec → validate → serialize
 
 ### Example 1: Minimal valid IPTV profile
 
@@ -842,7 +1038,7 @@ validate({
 
 ## FFmpeg Command Ordering
 
-fflint is a **validation-only** library — it does not build or parse FFmpeg command strings. However, the Senta Constructor that embeds fflint follows the canonical FFmpeg option ordering:
+fflint validates FFmpeg profiles and also provides `parse()` and `serialize()` functions (see [§5](#5-parsing-ffmpeg-commands-parse) and [§6](#6-serializing-state-to-command-serialize)). Both follow the canonical FFmpeg option ordering:
 
 ```
 ffmpeg [global opts] [pre-input opts] -i <input> [-i <input2>] [stream maps] [output codec/filter opts] -f <format> [muxer opts] <output>

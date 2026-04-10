@@ -79,7 +79,7 @@ export const rules = [
     message: 'VAAPI codec requires -hwaccel vaapi',
   },
   {
-    id: 'nvenc_cpu_preset', group: 'codec_preset_mismatch', layer: 2,
+    id: 'nvenc_cpu_preset', group: 'l1_preset', layer: 2,
     severity: 'error', flag: '-preset',
     check: (s) => NVENC_CODECS.includes(s.videoCodec) && PRESETS.cpu.includes(s.preset) && !PRESETS.nvenc.includes(s.preset),
     message: (s) => `Preset "${s.preset}" is a libx264/libx265 CPU preset — FFmpeg will reject it with NVENC. Use an NVENC preset instead: ${PRESETS.nvenc.join(', ')}`,
@@ -684,6 +684,18 @@ export const rules = [
     severity: 'warning',
     check: (s) => s.videoCodec === 'disabled' && s.audioCodec === 'disabled',
     message: 'Both video and audio are disabled — the output will contain no media streams and cannot be played',
+  },
+  {
+    id: 'mpegts_no_audio', group: 'mpegts_no_audio', layer: 2,
+    severity: 'info', flag: '-an',
+    check: (s) => s.audioCodec === 'disabled' && s.outputFormat === 'mpegts' && s.videoCodec && s.videoCodec !== 'disabled',
+    message: 'Audio is disabled (-an) on an MPEG-TS output — the stream will have no audio track, which may cause player issues or operator confusion. Verify this is intentional',
+  },
+  {
+    id: 'image2_not_streaming', group: 'image2_not_streaming', layer: 2,
+    severity: 'warning', flag: '-f',
+    check: (s) => s.outputFormat === 'image2',
+    message: 'image2 format is not a streaming output — it writes individual image files. If this is a thumbnail extraction job, this warning can be ignored',
   },
 
   // ── Layer 3: Broadcast semantic rules ─────────────────────────────────────
