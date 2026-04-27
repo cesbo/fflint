@@ -210,6 +210,18 @@ console.log('\n═══ Audit fix: -vf with various filter chains ═══')
   // -vf not flagged as unrecognized in structural checks
   const raw3 = validateRaw(`ffmpeg -y -i "\${i}" -vf "scale=640:480" -c:v libx264 -preset fast -crf 20 -c:a aac -f mpegts "\${o}"`)
   assert(!hasMsg(raw3, 'Unrecognized'), '-vf not in unrecognized flags')
+
+  // -vf "scale=1000:-1" — negative dim is a valid FFmpeg "auto" placeholder, must not trigger errors
+  const cmd4 = `ffmpeg -y -i "\${i}" -vf "scale=1000:-1" -c:v libx264 -preset fast -crf 20 -c:a aac -f mpegts "\${o}"`
+  const s4   = parse(cmd4)
+  const raw4 = validateRaw(cmd4)
+  const sem4 = validate(s4)
+  assert(!s4.deinterlaceFilter, '-vf "scale=1000:-1" → no deinterlace filter extracted')
+  assert(!s4.customFrameSize, '-vf "scale=1000:-1" does not populate customFrameSize')
+  assert(!hasMsg(raw4, 'Unrecognized'), '-vf "scale=1000:-1" not flagged as unrecognized')
+  assert(!hasId([...raw4, ...sem4], 'l1_framesize'), '-vf "scale=1000:-1" does not trigger l1_framesize')
+  assert(![...raw4, ...sem4].some(r => r.severity === 'error' && r.flag === '-vf'),
+    '-vf "scale=1000:-1" produces no errors on -vf')
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
