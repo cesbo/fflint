@@ -48,7 +48,7 @@ function parseTokens(str) {
   const raw = {
     re: false, loop: false, wallclock: false, fflags: [], maxDelay: '', timeout: '', threadQueueSize: '',
     analyzeduration: '', probesize: '', copyts: false,
-    videoEnabled: true, videoCodec: 'copy', hwaccel: '', hwaccelOutputFormat: '',
+    videoEnabled: true, videoCodec: undefined, hwaccel: '', hwaccelOutputFormat: '',
     inputDecoderCodec: '', gpuIndex: '',
     preset: '', vprofile: '', frameSize: 'original', customFrameSize: '',
     fps: 'original', customFps: '',
@@ -56,7 +56,7 @@ function parseTokens(str) {
     deinterlaceFilter: '', nvdecDeint: '', forcedIdr: false,
     pixFmt: '', level: '', scThreshold: '', bframes: '', refs: '', bsfVideo: 'none',
     fieldOrder: '', colorPrimaries: '', colorTrc: '', colorspace: '',
-    audioEnabled: true, audioCodec: 'copy',
+    audioEnabled: true, audioCodec: undefined,
     sampleRate: 'original', channels: 'original', audioBitrate: 'default',
     dialnorm: '', bsfAudio: 'none',
     outputFormat: 'mpegts',
@@ -139,8 +139,28 @@ function parseTokens(str) {
       case '-crf': i++; raw.bitrateMode = 'crf'; raw.bitrate = tokens[i] || ''; break
       case '-maxrate': i++; raw.maxrate = tokens[i] || ''; break
       case '-bufsize': i++; raw.bufsize = tokens[i] || ''; break
-      case '-vf': case '-filter:v': i++; { const _fv = tokens[i] || ''; const _m = _fv.match(/\b(yadif_cuda|bwdif_cuda|yadif|bwdif)\b/); if (_m) raw.deinterlaceFilter = _m[1]; break }
-      case '-filter_complex': i++; { const _fv = tokens[i] || ''; const _m = _fv.match(/\b(yadif_cuda|bwdif_cuda|yadif|bwdif)\b/); if (_m) raw.deinterlaceFilter = _m[1]; break }
+      case '-vf': case '-filter:v': i++; {
+        const _fv = tokens[i] || ''
+        const _m = _fv.match(/\b(yadif_cuda|bwdif_cuda|yadif|bwdif)\b/)
+        if (_m) raw.deinterlaceFilter = _m[1]
+        const _scale = _fv.match(/\bscale=(-?\d+):(-?\d+)\b/)
+        if (_scale) {
+          raw.frameSize = 'custom'
+          raw.customFrameSize = `${_scale[1]}x${_scale[2]}`
+        }
+        break
+      }
+      case '-filter_complex': i++; {
+        const _fv = tokens[i] || ''
+        const _m = _fv.match(/\b(yadif_cuda|bwdif_cuda|yadif|bwdif)\b/)
+        if (_m) raw.deinterlaceFilter = _m[1]
+        const _scale = _fv.match(/\bscale=(-?\d+):(-?\d+)\b/)
+        if (_scale) {
+          raw.frameSize = 'custom'
+          raw.customFrameSize = `${_scale[1]}x${_scale[2]}`
+        }
+        break
+      }
       case '-forced-idr': i++; raw.forcedIdr = tokens[i] === '1' || tokens[i] === 'true'; break
       case '-c:a': i++; raw.audioCodec = tokens[i] || 'copy'; break
       case '-an': raw.audioEnabled = false; raw.audioCodec = 'disabled'; break
@@ -212,8 +232,8 @@ function parseTokens(str) {
             i++
             const base = streamIdx[1]
             const val = tokens[i] || ''
-            if (base === '-c:v' && passedInput && raw.videoCodec === 'copy') raw.videoCodec = val || 'copy'
-            else if (base === '-c:a' && raw.audioCodec === 'copy') raw.audioCodec = val || 'copy'
+            if (base === '-c:v' && passedInput && (raw.videoCodec === undefined || raw.videoCodec === 'copy')) raw.videoCodec = val || 'copy'
+            else if (base === '-c:a' && (raw.audioCodec === undefined || raw.audioCodec === 'copy')) raw.audioCodec = val || 'copy'
             else if (base === '-b:v' && !raw.bitrate) raw.bitrate = val
             else if (base === '-b:a' && raw.audioBitrate === 'default') raw.audioBitrate = val
             break

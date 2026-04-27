@@ -80,8 +80,10 @@ export function serialize(state, options = {}) {
 
   if (s.videoCodec === 'disabled') {
     p.push('-vn')
-  } else if (s.videoCodec) {
-    p.push('-c:v', s.videoCodec)
+  } else {
+    if (s.videoCodec) p.push('-c:v', s.videoCodec)
+
+    const fs = resolveFrameSize(s)
 
     if (isEncoding) {
       if (s.preset) p.push('-preset', s.preset)
@@ -89,10 +91,6 @@ export function serialize(state, options = {}) {
       if (s.profile) p.push('-profile:v', s.profile)
       if (s.tier) p.push('-tier', s.tier)
       if (s.lookahead !== undefined && s.lookahead !== '') p.push('-lookahead', String(s.lookahead))
-
-      // Frame size
-      const fs = resolveFrameSize(s)
-      if (fs && fs !== 'original') p.push('-s', fs)
 
       // Frame rate
       const fps = resolveFps(s)
@@ -108,12 +106,14 @@ export function serialize(state, options = {}) {
       // Filters
       const filters = []
       if (s.deinterlaceFilter) filters.push(s.deinterlaceFilter)
+      if (fs && fs !== 'original') filters.push(`scale=${fs.replace('x', ':')}`)
       if (s.logoPath) filters.push('overlay')
       if (filters.length > 0) {
+        const filterGraph = quoteFilterArgument(filters.join(','))
         if (s.logoPath) {
-          p.push('-filter_complex', filters.join(','))
+          p.push('-filter_complex', filterGraph)
         } else {
-          p.push('-filter:v', filters.join(','))
+          p.push('-vf', filterGraph)
         }
       }
 
@@ -147,6 +147,19 @@ export function serialize(state, options = {}) {
       if (s.aspect) p.push('-aspect', s.aspect)
       if (s.bsfVideo && s.bsfVideo !== 'none') p.push('-bsf:v', s.bsfVideo)
       if (s.fpsSyncMode) p.push('-fps_mode', s.fpsSyncMode)
+    } else if (!s.videoCodec) {
+      const filters = []
+      if (s.deinterlaceFilter) filters.push(s.deinterlaceFilter)
+      if (fs && fs !== 'original') filters.push(`scale=${fs.replace('x', ':')}`)
+      if (s.logoPath) filters.push('overlay')
+      if (filters.length > 0) {
+        const filterGraph = quoteFilterArgument(filters.join(','))
+        if (s.logoPath) {
+          p.push('-filter_complex', filterGraph)
+        } else {
+          p.push('-vf', filterGraph)
+        }
+      }
     }
   }
 
@@ -219,11 +232,18 @@ export function serialize(state, options = {}) {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function resolveFrameSize(s) {
-  if (s.frameSize === 'custom') return s.customFrameSize || ''
+  if (s.frameSize === 'custom') {
+    const customSize = s.customFrameSize || ''
+    return /^-?\d+x-?\d+$/.test(customSize) ? customSize : ''
+  }
   return s.frameSize || ''
 }
 
 function resolveFps(s) {
   if (s.fps === 'custom') return s.customFps || ''
   return s.fps || ''
+}
+
+function quoteFilterArgument(filterGraph) {
+  return `"${filterGraph.replace(/"/g, '\\"')}"`
 }
