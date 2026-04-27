@@ -372,7 +372,7 @@ export function validateCustomFrameSize(s) {
   if (s.frameSize !== 'custom' || !s.customFrameSize) return []
   const HINT = 'Common: 1920x1080 (Full HD), 1280x720 (HD), 3840x2160 (4K UHD), 720x576 (SD PAL), 720x480 (SD NTSC)'
   if (!FRAMESIZE_RE.test(s.customFrameSize))
-    return [err('l1_framesize', 'l1_framesize', '-s',
+    return [warn('l1_framesize', 'l1_framesize', '-s',
       'Frame size must be in WxH format, e.g. 1920x1080', HINT)]
   return []
 }
