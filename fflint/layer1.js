@@ -17,7 +17,8 @@ import {
 } from './codec-data.js'
 
 const BITRATE_RE   = /^\d+(\.\d+)?[kKmMgG]?$/i
-const FRAMESIZE_RE = /^\d{2,5}x\d{2,5}$/
+// FFmpeg's av_parse_video_size accepts both 'x' and '-' as WxH separators
+const FRAMESIZE_RE = /^\d{2,5}[x-]\d{2,5}$/
 const INT32_MAX    = 2_147_483_647
 
 export function validateLayer1(s) {
@@ -373,7 +374,7 @@ export function validateCustomFrameSize(s) {
   const HINT = 'Common: 1920x1080 (Full HD), 1280x720 (HD), 3840x2160 (4K UHD), 720x576 (SD PAL), 720x480 (SD NTSC)'
   if (!FRAMESIZE_RE.test(s.customFrameSize))
     return [err('l1_framesize', 'l1_framesize', '-s',
-      'Frame size must be in WxH format, e.g. 1920x1080', HINT)]
+      'Frame size must be in WxH format, e.g. 1920x1080 (separator "x" or "-")', HINT)]
   return []
 }
 
