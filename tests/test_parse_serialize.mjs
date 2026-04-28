@@ -542,6 +542,58 @@ console.log('\n\x1b[1m═══ Section 21: serialize() with passthrough flags �
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+console.log('\n\x1b[1m═══ Section: Optional video/audio codec ═══\x1b[0m')
+// ═══════════════════════════════════════════════════════════════════════════════
+
+{
+  // No -c:v / -c:a in input → codecs should be undefined/empty (FFmpeg picks container default)
+  const s = parse('ffmpeg -y -i ${i} -f mpegts ${o}')
+  assert('no -c:v → videoCodec falsy', !s.videoCodec)
+  assert('no -c:a → audioCodec falsy', !s.audioCodec)
+  assert('videoEnabled stays true', s.videoEnabled !== false)
+  assert('audioEnabled stays true', s.audioEnabled !== false)
+}
+
+{
+  // Round-trip: command without codec args must serialize back without -c:v/-c:a
+  const original = 'ffmpeg -y -i ${i} -f mpegts ${o}'
+  const cmd = serialize(parse(original))
+  assert('no -c:v emitted when not set', !cmd.includes('-c:v'))
+  assert('no -c:a emitted when not set', !cmd.includes('-c:a'))
+  assert('no -vn emitted when not set', !cmd.includes('-vn'))
+  assert('no -an emitted when not set', !cmd.includes('-an'))
+  assert('still has -f mpegts', cmd.includes('-f mpegts'))
+}
+
+{
+  // Validation must NOT error on missing codec
+  const errs = validate(parse('ffmpeg -y -i ${i} -f mpegts ${o}'))
+  const codecErrors = errs.filter(e => e.severity === 'error' && /codec/i.test(e.message || ''))
+  assert('no codec errors when codec absent', codecErrors.length === 0,
+    codecErrors.map(e => e.message).join('; '))
+}
+
+{
+  // Only video codec specified, audio not
+  const s = parse('ffmpeg -y -i ${i} -c:v libx264 -b:v 2M -f mpegts ${o}')
+  assert('videoCodec=libx264', s.videoCodec === 'libx264')
+  assert('audioCodec falsy when -c:a absent', !s.audioCodec)
+  const cmd = serialize(s)
+  assert('serializes -c:v libx264', cmd.includes('-c:v libx264'))
+  assert('does not emit -c:a', !cmd.includes('-c:a'))
+}
+
+{
+  // Only audio codec specified
+  const s = parse('ffmpeg -y -i ${i} -c:a aac -b:a 128k -f mpegts ${o}')
+  assert('audioCodec=aac', s.audioCodec === 'aac')
+  assert('videoCodec falsy when -c:v absent', !s.videoCodec)
+  const cmd = serialize(s)
+  assert('serializes -c:a aac', cmd.includes('-c:a aac'))
+  assert('does not emit -c:v', !cmd.includes('-c:v'))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 console.log(`\n\x1b[1m═══ Results: ${pass}/${pass + fail} passed ═══\x1b[0m`)
 if (fail > 0) {
   console.log(`\x1b[31m${fail} test(s) FAILED\x1b[0m`)

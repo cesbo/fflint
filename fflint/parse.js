@@ -48,7 +48,7 @@ function parseTokens(str) {
   const raw = {
     re: false, loop: false, wallclock: false, fflags: [], maxDelay: '', timeout: '', threadQueueSize: '',
     analyzeduration: '', probesize: '', copyts: false,
-    videoEnabled: true, videoCodec: 'copy', hwaccel: '', hwaccelOutputFormat: '',
+    videoEnabled: true, videoCodec: '', hwaccel: '', hwaccelOutputFormat: '',
     inputDecoderCodec: '', gpuIndex: '',
     preset: '', vprofile: '', frameSize: 'original', customFrameSize: '',
     fps: 'original', customFps: '',
@@ -56,7 +56,7 @@ function parseTokens(str) {
     deinterlaceFilter: '', nvdecDeint: '', forcedIdr: false,
     pixFmt: '', level: '', scThreshold: '', bframes: '', refs: '', bsfVideo: 'none',
     fieldOrder: '', colorPrimaries: '', colorTrc: '', colorspace: '',
-    audioEnabled: true, audioCodec: 'copy',
+    audioEnabled: true, audioCodec: '',
     sampleRate: 'original', channels: 'original', audioBitrate: 'default',
     dialnorm: '', bsfAudio: 'none',
     outputFormat: 'mpegts',
@@ -212,8 +212,8 @@ function parseTokens(str) {
             i++
             const base = streamIdx[1]
             const val = tokens[i] || ''
-            if (base === '-c:v' && passedInput && raw.videoCodec === 'copy') raw.videoCodec = val || 'copy'
-            else if (base === '-c:a' && raw.audioCodec === 'copy') raw.audioCodec = val || 'copy'
+            if (base === '-c:v' && passedInput && !raw.videoCodec) raw.videoCodec = val || 'copy'
+            else if (base === '-c:a' && !raw.audioCodec) raw.audioCodec = val || 'copy'
             else if (base === '-b:v' && !raw.bitrate) raw.bitrate = val
             else if (base === '-b:a' && raw.audioBitrate === 'default') raw.audioBitrate = val
             break
@@ -277,7 +277,7 @@ function toFflintState(s) {
 
   if (!s.videoEnabled) {
     f.videoCodec = 'disabled'
-  } else {
+  } else if (s.videoCodec) {
     f.videoCodec = s.videoCodec
     if (s.videoCodec !== 'copy' && s.videoCodec !== 'disabled') {
       if (s.hwaccel) f.hwaccel = s.hwaccel
@@ -336,7 +336,7 @@ function toFflintState(s) {
 
   if (!s.audioEnabled) {
     f.audioCodec = 'disabled'
-  } else {
+  } else if (s.audioCodec) {
     f.audioCodec = s.audioCodec
     if (s.audioCodec !== 'copy' && s.audioCodec !== 'disabled') {
       if (s.sampleRate !== 'original') f.sampleRate = s.sampleRate
