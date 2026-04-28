@@ -1,0 +1,28 @@
+{
+  "name": "@cesbo/fflint",
+  "version": "1.2.0",
+  "description": "FFmpeg command parser, serializer and validator",
+  "type": "module",
+  "exports": {
+    ".": "./fflint/fflint.js",
+    "./parse": "./fflint/parse.js",
+    "./serialize": "./fflint/serialize.js",
+    "./validate-raw": "./fflint/validate-raw.js"
+  },
+  "main": "./fflint/fflint.js",
+  "files": [
+    "fflint/"
+  ],
+  "keywords": [
+    "ffmpeg",
+    "parser",
+    "serializer",
+    "validator",
+    "broadcast"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cesbo/fflint.git"
+  }
+}
