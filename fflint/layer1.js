@@ -586,7 +586,7 @@ export function validateNvdecDeint(s) {
  */
 function validateEnum(s, field, id, flag, validValues, label) {
   const val = s[field]
-  if (val === undefined || val === null) return []
+  if (val === undefined || val === null || val === '') return []
   if (validValues.includes(val)) return []
   return [err(id, id, flag,
     `${label} must be one of: ${validValues.join(', ')} (got "${val}")`)]
