@@ -1059,6 +1059,16 @@ export const rules = [
     },
     message: 'Both -s and -vf scale= specify the same size — redundant. Prefer using only -vf scale=W:H',
   },
+  {
+    // Catch-all advisory for the case where one or both sides use auto
+    // (-1/-2/0) or expressions and we cannot statically compare. Same group
+    // as the diff/redundant rules so deduplicate() will keep only the
+    // highest-severity hit per command.
+    id: 's_and_vf_scale_present', group: 's_and_vf_scale_conflict', layer: 2,
+    severity: 'info', flag: '-vf',
+    check: (s) => !!resolveSFrameSize(s) && !!getScaleSize(s.vfAtoms),
+    message: '-s and -vf scale= are both set — the filter chain wins and -s is ignored. Keep only one to avoid confusion',
+  },
 
   // ── Layer 3: prefer hardware scaler when hwaccel is enabled ───────────────
 

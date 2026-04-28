@@ -148,15 +148,40 @@ console.log('\n\x1b[1m═══ Section 4: s_and_vf_scale_conflict rule ══�
   const errs = validate(parse(
     `ffmpeg -y -i \${i} -s 1920x1080 -vf "scale=1920:-1" -c:v libx264 -b:v 4M -f mpegts \${o}`
   ))
-  assert('no rule when scale h=-1 (auto)', !hasId(errs, 's_and_vf_scale_diff') && !hasId(errs, 's_and_vf_scale_redundant'))
+  assert('no diff/redundant when scale h=-1 (auto)',
+    !hasId(errs, 's_and_vf_scale_diff') && !hasId(errs, 's_and_vf_scale_redundant'))
+  const r = errs.find(e => e.id === 's_and_vf_scale_present')
+  assert('catch-all info fires for auto case', !!r && r.severity === 'info')
 }
 
 {
-  // Expression for width → no rule
+  // Expression for width → no diff/redundant; catch-all info fires
   const errs = validate(parse(
     `ffmpeg -y -i \${i} -s 1920x1080 -vf "scale=iw/2:-2" -c:v libx264 -b:v 4M -f mpegts \${o}`
   ))
-  assert('no rule when scale uses iw expr', !hasId(errs, 's_and_vf_scale_diff') && !hasId(errs, 's_and_vf_scale_redundant'))
+  assert('no diff/redundant when scale uses iw expr',
+    !hasId(errs, 's_and_vf_scale_diff') && !hasId(errs, 's_and_vf_scale_redundant'))
+  assert('catch-all info fires for expr case',
+    !!errs.find(e => e.id === 's_and_vf_scale_present'))
+}
+
+{
+  // When concrete and equal, redundant (warning) wins over the info catch-all
+  // due to per-group deduplication.
+  const errs = validate(parse(
+    `ffmpeg -y -i \${i} -s 1920x1080 -vf "scale=1920:1080" -c:v libx264 -b:v 4M -f mpegts \${o}`
+  ))
+  const r = errs.find(e => e.group === 's_and_vf_scale_conflict')
+  assert('redundant wins over info', r && r.severity === 'warning' && r.id === 's_and_vf_scale_redundant')
+}
+
+{
+  // When concrete and differ, diff (error) wins.
+  const errs = validate(parse(
+    `ffmpeg -y -i \${i} -s 1920x1080 -vf "scale=1280:720" -c:v libx264 -b:v 4M -f mpegts \${o}`
+  ))
+  const r = errs.find(e => e.group === 's_and_vf_scale_conflict')
+  assert('diff wins over info', r && r.severity === 'error' && r.id === 's_and_vf_scale_diff')
 }
 
 {
