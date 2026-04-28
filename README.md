@@ -102,6 +102,21 @@ fflint is a set of ES modules. No build step, no bundler, no dependencies.
 </script>
 ```
 
+### npm pack (for Vue / Vite / any Node.js project)
+
+```bash
+# In the fflint directory
+npm pack
+# → cesbo-fflint-1.2.0.tgz
+
+# In your project
+npm install ../fflint/cesbo-fflint-1.2.0.tgz
+```
+
+```js
+import { validate, parse, serialize } from '@cesbo/fflint'
+```
+
 ### Bundled app (Vite, Webpack, Rollup, etc.)
 
 ```js
