@@ -143,6 +143,40 @@ console.log('\n\x1b[1m═══ Section 4: s_and_vf_scale_conflict rule ══�
   assert('no rule when only -s', !hasId(errs, 's_and_vf_scale_diff') && !hasId(errs, 's_and_vf_scale_redundant'))
 }
 
+{
+  // Auto-height with -1: cannot be compared statically → no rule
+  const errs = validate(parse(
+    `ffmpeg -y -i \${i} -s 1920x1080 -vf "scale=1920:-1" -c:v libx264 -b:v 4M -f mpegts \${o}`
+  ))
+  assert('no rule when scale h=-1 (auto)', !hasId(errs, 's_and_vf_scale_diff') && !hasId(errs, 's_and_vf_scale_redundant'))
+}
+
+{
+  // Expression for width → no rule
+  const errs = validate(parse(
+    `ffmpeg -y -i \${i} -s 1920x1080 -vf "scale=iw/2:-2" -c:v libx264 -b:v 4M -f mpegts \${o}`
+  ))
+  assert('no rule when scale uses iw expr', !hasId(errs, 's_and_vf_scale_diff') && !hasId(errs, 's_and_vf_scale_redundant'))
+}
+
+{
+  // Long-form named width=/height= still works for the conflict rule
+  const errs = validate(parse(
+    `ffmpeg -y -i \${i} -s 1920x1080 -vf "scale=width=1280:height=720" -c:v libx264 -b:v 4M -f mpegts \${o}`
+  ))
+  const r = errs.find(e => e.group === 's_and_vf_scale_conflict')
+  assert('long-form width=/height= still detected', !!r && r.severity === 'error')
+}
+
+{
+  // scale with extra options (flags=, force_original_aspect_ratio=) still detected
+  const errs = validate(parse(
+    `ffmpeg -y -i \${i} -s 1920x1080 -vf "scale=1280:720:flags=lanczos:force_original_aspect_ratio=decrease" -c:v libx264 -b:v 4M -f mpegts \${o}`
+  ))
+  const r = errs.find(e => e.group === 's_and_vf_scale_conflict')
+  assert('scale with extra opts still detected', !!r && r.severity === 'error')
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 console.log('\n\x1b[1m═══ Section 5: prefer_vf_scale_with_hwaccel rule ═══\x1b[0m')
 // ═══════════════════════════════════════════════════════════════════════════════

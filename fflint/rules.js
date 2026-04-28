@@ -23,6 +23,13 @@ function resolveSFrameSize(s) {
   return { w: m[1], h: m[2] }
 }
 
+// Helper: true only when v is a concrete positive pixel count.
+// Filter values like -1, -2, 0, iw/2, min(iw,1920), trunc(...) are valid
+// scale-filter forms but cannot be statically compared with -s.
+function isConcretePixels(v) {
+  return /^[1-9]\d*$/.test(String(v))
+}
+
 export const rules = [
 
   // ── Layer 2: Copy conflicts ───────────────────────────────────────────────
@@ -1016,6 +1023,11 @@ export const rules = [
   },
 
   // ── Layer 2: -s vs -vf scale= conflict ────────────────────────────────────
+  //
+  // Only triggered when BOTH -s and the scale filter use concrete positive
+  // pixel values. The filter forms `-1`, `-2`, `0`, `iw/2`, `min(iw,1920)`
+  // etc. are auto/expression modes that resolve at runtime and cannot be
+  // compared statically against -s.
 
   {
     id: 's_and_vf_scale_diff', group: 's_and_vf_scale_conflict', layer: 2,
@@ -1025,6 +1037,7 @@ export const rules = [
       if (!sfs) return false
       const vfs = getScaleSize(s.vfAtoms)
       if (!vfs) return false
+      if (!isConcretePixels(vfs.w) || !isConcretePixels(vfs.h)) return false
       return sfs.w !== vfs.w || sfs.h !== vfs.h
     },
     message: (s) => {
@@ -1041,6 +1054,7 @@ export const rules = [
       if (!sfs) return false
       const vfs = getScaleSize(s.vfAtoms)
       if (!vfs) return false
+      if (!isConcretePixels(vfs.w) || !isConcretePixels(vfs.h)) return false
       return sfs.w === vfs.w && sfs.h === vfs.h
     },
     message: 'Both -s and -vf scale= specify the same size — redundant. Prefer using only -vf scale=W:H',
