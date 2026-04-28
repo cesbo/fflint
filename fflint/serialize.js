@@ -106,14 +106,22 @@ export function serialize(state, options = {}) {
       }
 
       // Filters
-      const filters = []
-      if (s.deinterlaceFilter) filters.push(s.deinterlaceFilter)
-      if (s.logoPath) filters.push('overlay')
-      if (filters.length > 0) {
-        if (s.logoPath) {
-          p.push('-filter_complex', filters.join(','))
-        } else {
-          p.push('-filter:v', filters.join(','))
+      if (s.vfChain) {
+        // Preserve user's filter chain verbatim. Logo overlay still goes to
+        // -filter_complex so the [in][overlay][out] graph stays separate.
+        const needsQuotes = /[ ,;]/.test(s.vfChain)
+        p.push('-filter:v', needsQuotes ? `"${s.vfChain}"` : s.vfChain)
+        if (s.logoPath) p.push('-filter_complex', 'overlay')
+      } else {
+        const filters = []
+        if (s.deinterlaceFilter) filters.push(s.deinterlaceFilter)
+        if (s.logoPath) filters.push('overlay')
+        if (filters.length > 0) {
+          if (s.logoPath) {
+            p.push('-filter_complex', filters.join(','))
+          } else {
+            p.push('-filter:v', filters.join(','))
+          }
         }
       }
 

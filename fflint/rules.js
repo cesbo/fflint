@@ -6,10 +6,22 @@ import {
   LEVEL_LIMITS, H264_LEVEL_CODECS,
   CHANNEL_LAYOUT_CHANNELS, AUDIO_BITRATE_FLOOR,
 } from './codec-data.js'
+import { getScaleSize, hasHwScale } from './vf-parse.js'
 
 // Helper: true when the state requests any kind of looping.
 // Accepts both legacy boolean (true) and integer (-1 or N>0) models.
 const isLooping = s => s.streamLoop === true || (Number.isInteger(s.streamLoop) && s.streamLoop !== 0)
+
+// Helper: resolve the WxH that -s sets (handles 'custom' indirection and the
+// '-' separator accepted by L1).
+function resolveSFrameSize(s) {
+  if (!s.frameSize || s.frameSize === 'original') return null
+  const raw = s.frameSize === 'custom' ? s.customFrameSize : s.frameSize
+  if (!raw) return null
+  const m = String(raw).match(/^(\d+)[x-](\d+)$/)
+  if (!m) return null
+  return { w: m[1], h: m[2] }
+}
 
 export const rules = [
 
@@ -1001,6 +1013,55 @@ export const rules = [
     severity: 'info', flag: '-hls_enc',
     check: (s) => s.hlsEnc === true && s.hlsSegmentType !== 'fmp4',
     message: 'HLS encryption with mpegts segments uses AES-128 — fMP4 segments support SAMPLE-AES/CBCS which is more efficient and required by some DRM systems',
+  },
+
+  // ── Layer 2: -s vs -vf scale= conflict ────────────────────────────────────
+
+  {
+    id: 's_and_vf_scale_diff', group: 's_and_vf_scale_conflict', layer: 2,
+    severity: 'error', flag: '-vf',
+    check: (s) => {
+      const sfs = resolveSFrameSize(s)
+      if (!sfs) return false
+      const vfs = getScaleSize(s.vfAtoms)
+      if (!vfs) return false
+      return sfs.w !== vfs.w || sfs.h !== vfs.h
+    },
+    message: (s) => {
+      const sfs = resolveSFrameSize(s)
+      const vfs = getScaleSize(s.vfAtoms)
+      return `-s ${sfs.w}x${sfs.h} conflicts with -vf scale=${vfs.w}:${vfs.h} — only one will take effect (the filter chain wins). Pick one.`
+    },
+  },
+  {
+    id: 's_and_vf_scale_redundant', group: 's_and_vf_scale_conflict', layer: 2,
+    severity: 'warning', flag: '-vf',
+    check: (s) => {
+      const sfs = resolveSFrameSize(s)
+      if (!sfs) return false
+      const vfs = getScaleSize(s.vfAtoms)
+      if (!vfs) return false
+      return sfs.w === vfs.w && sfs.h === vfs.h
+    },
+    message: 'Both -s and -vf scale= specify the same size — redundant. Prefer using only -vf scale=W:H',
+  },
+
+  // ── Layer 3: prefer hardware scaler when hwaccel is enabled ───────────────
+
+  {
+    id: 'prefer_vf_scale_with_hwaccel', group: 'prefer_vf_scale_with_hwaccel', layer: 3,
+    severity: 'info', flag: '-s',
+    check: (s) => {
+      if (!s.hwaccel) return false
+      if (!resolveSFrameSize(s)) return false
+      if (hasHwScale(s.vfAtoms)) return false
+      return true
+    },
+    message: (s) => {
+      const map = { cuda: 'scale_cuda', vaapi: 'scale_vaapi', qsv: 'scale_qsv' }
+      const suggested = map[s.hwaccel] || `scale_${s.hwaccel}`
+      return `Using -s with -hwaccel ${s.hwaccel} forces a CPU rescale (frames are downloaded from GPU). Prefer -vf ${suggested}=W:H to keep the frame on the GPU`
+    },
   },
 
 ]
