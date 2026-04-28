@@ -60,6 +60,7 @@ export function validateLayer1(s) {
     // ── Range / format validators ─────────────────────────────────────────────
     ...validateCustomFrameSize(s),
     ...validateCustomFps(s),
+    ...validateScaleFilter(s),
     ...validateGop(s),
     ...validateKeyintMin(s),
     ...validateScThreshold(s),
@@ -389,6 +390,33 @@ export function validateCustomFps(s) {
     return [warn('l1_fps', 'l1_fps', '-r',
       `FPS ${s.customFps} (≈${n.toFixed(3)}) is unusually high — most displays and encoders max out at 60`, HINT)]
   return []
+}
+
+// Catches `scale=1920x1080` style typos: the scale filter (and its hardware
+// variants) require WIDTH and HEIGHT separated by ':' or as named args, never
+// 'x'. `-s` uses 'x' but inside a filter chain it is not a valid separator
+// and FFmpeg will refuse the filter graph.
+export function validateScaleFilter(s) {
+  if (!Array.isArray(s.vfAtoms) || s.vfAtoms.length === 0) return []
+  const HINT = 'Inside the scale filter use ":", e.g. scale=1920:1080 or scale=w=1920:h=1080. The "x" separator is only valid for -s'
+  const out = []
+  for (const a of s.vfAtoms) {
+    if (a.name !== 'scale' && !a.name.startsWith('scale_')) continue
+    const w = a.args.w ?? a.args.width
+    const h = a.args.h ?? a.args.height
+    // Typo pattern: width contains a 'WxH' (or 'W×H') pair and height is missing.
+    if (h === undefined && typeof w === 'string' && /^\d+\s*[x×]\s*\d+$/.test(w)) {
+      out.push(err('l1_vf_scale_syntax', 'l1_vf_scale_syntax', '-vf',
+        `${a.name} value "${w}" uses the wrong separator — the scale filter requires "W:H", not "WxH"`, HINT))
+      continue
+    }
+    // Either dimension missing entirely (e.g. `scale=1920`).
+    if ((w === undefined || h === undefined) && (w !== undefined || h !== undefined)) {
+      out.push(err('l1_vf_scale_syntax', 'l1_vf_scale_syntax', '-vf',
+        `${a.name} requires both width and height — use ${a.name}=W:H or ${a.name}=w=W:h=H`, HINT))
+    }
+  }
+  return out
 }
 
 export function validateGop(s) {

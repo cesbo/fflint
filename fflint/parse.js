@@ -366,6 +366,14 @@ function toFflintState(s) {
   if (s.vfChain) f.vfChain = s.vfChain
   if (Array.isArray(s.vfAtoms) && s.vfAtoms.length) f.vfAtoms = s.vfAtoms
 
+  // Frame size and frame rate are forwarded unconditionally so that L1/L2
+  // rules can see them even when no codec is set (FFmpeg honors -s/-r with
+  // the container default codec; the s_and_vf_scale rules must still fire).
+  if (s.frameSize && s.frameSize !== 'original') f.frameSize = s.frameSize
+  if (s.frameSize === 'custom' && s.customFrameSize) f.customFrameSize = s.customFrameSize
+  if (s.fps && s.fps !== 'original') f.fps = s.fps
+  if (s.fps === 'custom' && s.customFps) f.customFps = s.customFps
+
   if (!s.audioEnabled) {
     f.audioCodec = 'disabled'
   } else if (s.audioCodec) {
