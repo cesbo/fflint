@@ -7,6 +7,7 @@
 //   // → { videoCodec: 'h264_nvenc', preset: 'p4', bitrateMode: 'cbr', targetBitrate: '4M', ... }
 
 import { parseFilterChain, findDeinterlacer } from './vf-parse.js'
+import { normalizeSFrameSize } from './codec-data.js'
 
 // ─── Tokenize ─────────────────────────────────────────────────────────────────
 
@@ -131,8 +132,18 @@ function parseTokens(str) {
         i++
         const size = tokens[i] || ''
         const known = ['1920x1080', '1280x720', '720x576', '720x480']
-        if (known.includes(size)) raw.frameSize = size
-        else { raw.frameSize = 'custom'; raw.customFrameSize = size }
+        const canonical = normalizeSFrameSize(size)
+        if (canonical && known.includes(canonical)) {
+          raw.frameSize = canonical
+        } else if (canonical) {
+          raw.frameSize = 'custom'
+          raw.customFrameSize = canonical
+        } else {
+          // Not a valid -s value (preset typo, expression, missing dimension).
+          // Keep the raw text so L1 can flag it via validateCustomFrameSize.
+          raw.frameSize = 'custom'
+          raw.customFrameSize = size
+        }
         break
       }
       case '-r': {

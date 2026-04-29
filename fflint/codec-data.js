@@ -124,6 +124,64 @@ export const AUDIO_BITRATE_FLOOR = {
 // H.264 codecs that use LEVEL_LIMITS for resolution/fps cross-check
 export const H264_LEVEL_CODECS = ['libx264', 'h264_nvenc', 'h264_vaapi']
 
+// ── Named frame-size presets accepted by FFmpeg's -s (av_parse_video_size).
+//     Matched case-sensitively (lowercase only). Source of truth:
+//     libavutil/parseutils.c — video_size_abbrs[] in FFmpeg.
+
+export const VIDEO_SIZE_PRESETS = {
+  ntsc:        '720x480',   pal:         '720x576',
+  qntsc:       '352x240',   qpal:        '352x288',
+  sntsc:       '640x480',   spal:        '768x576',
+  film:        '352x240',   'ntsc-film': '352x240',
+  sqcif:       '128x96',    qcif:        '176x144',
+  cif:         '352x288',   '4cif':      '704x576',
+  '16cif':     '1408x1152',
+  qqvga:       '160x120',   qvga:        '320x240',
+  vga:         '640x480',   svga:        '800x600',
+  xga:         '1024x768',  uxga:        '1600x1200',
+  qxga:        '2048x1536', sxga:        '1280x1024',
+  qsxga:       '2560x2048', hsxga:       '5120x4096',
+  wvga:        '852x480',   wxga:        '1366x768',
+  wsxga:       '1600x1024', wuxga:       '1920x1200',
+  woxga:       '2560x1600', wqsxga:      '3200x2048',
+  wquxga:      '3840x2400', whsxga:      '6400x4096',
+  whuxga:      '7680x4800',
+  cga:         '320x200',   ega:         '640x350',
+  hd480:       '852x480',   hd720:       '1280x720',
+  hd1080:      '1920x1080',
+  '2k':        '2048x1080', '2kflat':    '1998x1080',
+  '2kscope':   '2048x858',  '2kdci':     '2048x1080',
+  '4k':        '4096x2160', '4kflat':    '3996x2160',
+  '4kscope':   '4096x1716', '4kdci':     '4096x2160',
+  nhd:         '640x360',   hqvga:       '240x160',
+  wqvga:       '400x240',   fwqvga:      '432x240',
+  hvga:        '480x320',   qhd:         '960x540',
+  uhd2160:     '3840x2160', uhd4320:     '7680x4320',
+}
+
+/**
+ * Normalize the value passed to FFmpeg's `-s` flag to canonical "WxH" form.
+ *
+ * Accepts:
+ *   - Named presets (case-sensitive, lowercase only): 'hd1080', 'pal', '4k', …
+ *   - Two positive integers separated by any single non-digit byte
+ *     (FFmpeg's av_parse_video_size accepts 'x', 'X', '-', ':', ' ', etc.)
+ *
+ * Returns the canonical "WxH" string, or null if input is not a valid -s value.
+ */
+export function normalizeSFrameSize(raw) {
+  if (typeof raw !== 'string' || raw.length === 0) return null
+  const trimmed = raw.trim()
+  if (Object.prototype.hasOwnProperty.call(VIDEO_SIZE_PRESETS, trimmed))
+    return VIDEO_SIZE_PRESETS[trimmed]
+  const m = trimmed.match(/^(\d+)[^\d](\d+)$/)
+  if (!m) return null
+  const w = parseInt(m[1], 10)
+  const h = parseInt(m[2], 10)
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null
+  return `${w}x${h}`
+}
+
 // ── Valid value enums — single source of truth for UI dropdowns + Layer 1 ────
 
 export const VALID_INPUT_TYPES    = ['udp','rtp','rtmp','http','file','srt','capture']
