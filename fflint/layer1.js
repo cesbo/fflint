@@ -410,8 +410,10 @@ export function validateCustomFps(s) {
 export function validateScaleFilter(s) {
   if (!Array.isArray(s.vfAtoms) || s.vfAtoms.length === 0) return []
   const HINT = 'Inside the scale filter use ":", e.g. scale=1920:1080 or scale=w=1920:h=1080. The "x" separator is only valid for -s'
+  const HINT_COMMA = 'Inside a filter, separate width and height with ":" — comma "," separates filters in the chain. Use scale=W:H, not scale=W,H'
   const out = []
-  for (const a of s.vfAtoms) {
+  for (let i = 0; i < s.vfAtoms.length; i++) {
+    const a = s.vfAtoms[i]
     if (a.name !== 'scale' && !a.name.startsWith('scale_')) continue
     const w = a.args.w ?? a.args.width
     const h = a.args.h ?? a.args.height
@@ -423,6 +425,16 @@ export function validateScaleFilter(s) {
     }
     // Either dimension missing entirely (e.g. `scale=1920`).
     if ((w === undefined || h === undefined) && (w !== undefined || h !== undefined)) {
+      // Special case: `scale=W,H` was split by the chain parser into
+      // `scale=W` followed by an orphan filter named `H`. Detect that the
+      // next atom has a numeric-only name to emit a clearer message.
+      const next = s.vfAtoms[i + 1]
+      if (h === undefined && typeof w === 'string' && /^\d+$/.test(w)
+          && next && /^-?\d+$/.test(next.name)) {
+        out.push(err('l1_vf_scale_syntax', 'l1_vf_scale_syntax', '-vf',
+          `${a.name}=${w},${next.name} uses "," between width and height — comma separates filters in the chain, use ":" instead (${a.name}=${w}:${next.name})`, HINT_COMMA))
+        continue
+      }
       out.push(err('l1_vf_scale_syntax', 'l1_vf_scale_syntax', '-vf',
         `${a.name} requires both width and height — use ${a.name}=W:H or ${a.name}=w=W:h=H`, HINT))
     }

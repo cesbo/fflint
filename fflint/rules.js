@@ -1070,6 +1070,37 @@ export const rules = [
     message: '-s and -vf scale= are both set — the filter chain wins and -s is ignored. Keep only one to avoid confusion',
   },
 
+  // ── Layer 3: scale filter is a no-op (cosmetic) ───────────────────────────
+  //
+  // Detects scale atoms whose width AND height resolve to the input
+  // dimensions: `0` (special "use input"), `-1`/`-2` (auto, with -1:-1
+  // collapsing to input), `iw`/`ih`/`in_w`/`in_h` (input-size constants),
+  // or omitted (defaults are iw/ih). Only fires when no other arg is
+  // present — `scale=0:0:format=yuv420p` or `scale=iw:ih:flags=lanczos`
+  // may be intentional pixel-format/algorithm coercion.
+
+  {
+    id: 'vf_scale_noop', group: 'vf_scale_noop', layer: 3,
+    severity: 'info', flag: '-vf',
+    check: (s) => {
+      if (!Array.isArray(s.vfAtoms) || s.vfAtoms.length === 0) return false
+      const NOOP = /^(0|-1|-2|iw|ih|in_w|in_h)$/
+      return s.vfAtoms.some(a => {
+        if (a.name !== 'scale' && !a.name.startsWith('scale_')) return false
+        const w = a.args.w ?? a.args.width
+        const h = a.args.h ?? a.args.height
+        const wNoop = w === undefined || (typeof w === 'string' && NOOP.test(w))
+        const hNoop = h === undefined || (typeof h === 'string' && NOOP.test(h))
+        if (!(wNoop && hNoop)) return false
+        // Reject if any non-dimension arg is present.
+        const extra = Object.keys(a.args).filter(k =>
+          k !== 'w' && k !== 'h' && k !== 'width' && k !== 'height')
+        return extra.length === 0
+      })
+    },
+    message: 'scale filter resolves to input dimensions (no-op) — it can be removed',
+  },
+
   // ── Layer 3: prefer hardware scaler when hwaccel is enabled ───────────────
 
   {

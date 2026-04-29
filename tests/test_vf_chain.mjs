@@ -246,6 +246,92 @@ console.log('\n\x1b[1m═══ Section 4b: L1 scale syntax errors ═══\x1b
   assert('rule fires even without -c:v', !!r && r.severity === 'error')
 }
 
+{
+  // scale=W,H — comma is the chain separator, gets parsed as orphan filter
+  const errs = validate(parse(
+    `ffmpeg -y -i \${i} -vf "scale=1920,1080" -f mpegts \${o}`
+  ))
+  const r = errs.find(e => e.id === 'l1_vf_scale_syntax')
+  assert('l1 fires for scale=W,H', !!r && r.severity === 'error')
+  assert('mentions comma vs colon', r && /comma|","/i.test(r.message))
+  assert('suggests fixed form scale=1920:1080', r && /scale=1920:1080/.test(r.message))
+}
+
+{
+  // scale_cuda=W,H — same comma typo on hardware variant
+  const errs = validate(parse(
+    `ffmpeg -y -hwaccel cuda -i \${i} -vf "scale_cuda=1280,720" -c:v h264_nvenc -b:v 4M -f mpegts \${o}`
+  ))
+  const r = errs.find(e => e.id === 'l1_vf_scale_syntax')
+  assert('l1 fires for scale_cuda=W,H', !!r && r.severity === 'error')
+  assert('comma message mentions scale_cuda', r && /scale_cuda/.test(r.message))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+console.log('\n\x1b[1m═══ Section 4c: vf_scale_noop rule ═══\x1b[0m')
+// ═══════════════════════════════════════════════════════════════════════════════
+
+{
+  // scale=0:0 → info no-op
+  const errs = validate(parse(
+    `ffmpeg -y -i \${i} -vf "scale=0:0" -f mpegts \${o}`
+  ))
+  const r = errs.find(e => e.id === 'vf_scale_noop')
+  assert('vf_scale_noop fires for scale=0:0', !!r && r.severity === 'info')
+  assert('noop message mentions input dimensions', r && /input dimensions|no-op/i.test(r.message))
+}
+
+{
+  // scale=iw:ih → info no-op
+  const errs = validate(parse(
+    `ffmpeg -y -i \${i} -vf "scale=iw:ih" -f mpegts \${o}`
+  ))
+  assert('vf_scale_noop fires for scale=iw:ih', !!errs.find(e => e.id === 'vf_scale_noop'))
+}
+
+{
+  // scale=-1:-1 → info no-op
+  const errs = validate(parse(
+    `ffmpeg -y -i \${i} -vf "scale=-1:-1" -f mpegts \${o}`
+  ))
+  assert('vf_scale_noop fires for scale=-1:-1', !!errs.find(e => e.id === 'vf_scale_noop'))
+}
+
+{
+  // scale (no args at all) → info no-op
+  const errs = validate(parse(
+    `ffmpeg -y -i \${i} -vf "scale" -f mpegts \${o}`
+  ))
+  assert('vf_scale_noop fires for bare scale', !!errs.find(e => e.id === 'vf_scale_noop'))
+}
+
+{
+  // Long-form named width=iw:height=ih → info no-op
+  const errs = validate(parse(
+    `ffmpeg -y -i \${i} -vf "scale=width=iw:height=ih" -f mpegts \${o}`
+  ))
+  assert('vf_scale_noop fires for width=iw:height=ih',
+    !!errs.find(e => e.id === 'vf_scale_noop'))
+}
+
+{
+  // scale=0:0:flags=lanczos — flags arg present, may be intentional sws coercion → no rule
+  const errs = validate(parse(
+    `ffmpeg -y -i \${i} -vf "scale=0:0:flags=lanczos" -f mpegts \${o}`
+  ))
+  assert('vf_scale_noop suppressed when extra args present',
+    !hasId(errs, 'vf_scale_noop'))
+}
+
+{
+  // scale=1280:720 — concrete dims → no rule
+  const errs = validate(parse(
+    `ffmpeg -y -i \${i} -vf "scale=1280:720" -f mpegts \${o}`
+  ))
+  assert('vf_scale_noop does not fire for concrete dims',
+    !hasId(errs, 'vf_scale_noop'))
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 console.log('\n\x1b[1m═══ Section 5: prefer_vf_scale_with_hwaccel rule ═══\x1b[0m')
 // ═══════════════════════════════════════════════════════════════════════════════
