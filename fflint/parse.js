@@ -130,7 +130,7 @@ function parseTokens(str) {
       case '-profile:v': i++; raw.vprofile = tokens[i] || ''; break
       case '-s': {
         i++
-        const size = tokens[i] || ''
+        const size = stripQuotes(tokens[i] || '')
         const known = ['1920x1080', '1280x720', '720x576', '720x480']
         const canonical = normalizeSFrameSize(size)
         if (canonical && known.includes(canonical)) {

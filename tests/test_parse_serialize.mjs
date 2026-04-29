@@ -169,6 +169,32 @@ console.log('\n\x1b[1m═══ Section 3: parse() — Video encoding options �
   assert('HD1080 → customFrameSize preserved', s.customFrameSize === 'HD1080')
 }
 
+{
+  // Quoted -s value: surrounding quotes are stripped (consistent with -vf)
+  const s = parse('ffmpeg -i ${i} -c:v libx264 -s "1920x1080" -c:a copy -f mp4 ${o}')
+  assert('quoted -s → frameSize 1920x1080', s.frameSize === '1920x1080')
+  assert('quoted -s → no customFrameSize', !s.customFrameSize)
+}
+
+{
+  // Quoted invalid -s: quotes stripped before validation
+  const s = parse('ffmpeg -i ${i} -c:v libx264 -s "1080:-1" -c:a copy -f mp4 ${o}')
+  assert('quoted "1080:-1" → custom', s.frameSize === 'custom')
+  assert('quoted "1080:-1" → no surrounding quotes in state', s.customFrameSize === '1080:-1')
+  const errs = validate(s)
+  const r = errs.find(e => e.id === 'l1_framesize')
+  assert('non-positive dim → l1_framesize fires', !!r && r.severity === 'error')
+  assert('error mentions filter-only', r && /filter-only/i.test(r.message))
+}
+
+{
+  // -s 1920x0 → specific non-positive error
+  const s = parse('ffmpeg -i ${i} -s 1920x0 -f mpegts ${o}')
+  const r = validate(s).find(e => e.id === 'l1_framesize')
+  assert('zero dim → l1_framesize fires', !!r && r.severity === 'error')
+  assert('zero dim → mentions positive integers', r && /positive integer/i.test(r.message))
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 console.log('\n\x1b[1m═══ Section 4: parse() — Audio options ═══\x1b[0m')
 // ═══════════════════════════════════════════════════════════════════════════════

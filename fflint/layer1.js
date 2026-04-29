@@ -373,6 +373,17 @@ export function validateFieldOrder(s) {
 export function validateCustomFrameSize(s) {
   if (s.frameSize !== 'custom' || !s.customFrameSize) return []
   const HINT = 'Common: 1920x1080 (Full HD), 1280x720 (HD), 3840x2160 (4K UHD), 720x576 (SD PAL), 720x480 (SD NTSC)'
+  // Specific case: two integers separated by any non-digit, but at least one
+  // is non-positive (e.g. '1080:-1', '1920x0'). The auto-derive '-1'/'-2'
+  // shorthand is filter-only and not accepted by FFmpeg's -s parser.
+  const pair = String(s.customFrameSize).match(/^(-?\d+)\D(-?\d+)$/)
+  if (pair) {
+    const w = parseInt(pair[1], 10)
+    const h = parseInt(pair[2], 10)
+    if (w <= 0 || h <= 0)
+      return [err('l1_framesize', 'l1_framesize', '-s',
+        `Frame size "${s.customFrameSize}" has a non-positive dimension — width and height must both be positive integers. The "-1"/"-2" auto-derive shorthand is filter-only and not valid for -s`, HINT)]
+  }
   if (!FRAMESIZE_RE.test(s.customFrameSize))
     return [err('l1_framesize', 'l1_framesize', '-s',
       'Frame size must be in WxH format, e.g. 1920x1080 (separator "x" or "-")', HINT)]
