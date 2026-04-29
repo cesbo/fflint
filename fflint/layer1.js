@@ -60,6 +60,7 @@ export function validateLayer1(s) {
     // ── Range / format validators ─────────────────────────────────────────────
     ...validateCustomFrameSize(s),
     ...validateCustomFps(s),
+    ...validateScaleFilter(s),
     ...validateGop(s),
     ...validateKeyintMin(s),
     ...validateScThreshold(s),
@@ -372,6 +373,17 @@ export function validateFieldOrder(s) {
 export function validateCustomFrameSize(s) {
   if (s.frameSize !== 'custom' || !s.customFrameSize) return []
   const HINT = 'Common: 1920x1080 (Full HD), 1280x720 (HD), 3840x2160 (4K UHD), 720x576 (SD PAL), 720x480 (SD NTSC)'
+  // Specific case: two integers separated by any non-digit, but at least one
+  // is non-positive (e.g. '1080:-1', '1920x0'). The auto-derive '-1'/'-2'
+  // shorthand is filter-only and not accepted by FFmpeg's -s parser.
+  const pair = String(s.customFrameSize).match(/^(-?\d+)\D(-?\d+)$/)
+  if (pair) {
+    const w = parseInt(pair[1], 10)
+    const h = parseInt(pair[2], 10)
+    if (w <= 0 || h <= 0)
+      return [err('l1_framesize', 'l1_framesize', '-s',
+        `Frame size "${s.customFrameSize}" has a non-positive dimension — width and height must both be positive integers. The "-1"/"-2" auto-derive shorthand is filter-only and not valid for -s`, HINT)]
+  }
   if (!FRAMESIZE_RE.test(s.customFrameSize))
     return [err('l1_framesize', 'l1_framesize', '-s',
       'Frame size must be in WxH format, e.g. 1920x1080 (separator "x" or "-")', HINT)]
@@ -389,6 +401,45 @@ export function validateCustomFps(s) {
     return [warn('l1_fps', 'l1_fps', '-r',
       `FPS ${s.customFps} (≈${n.toFixed(3)}) is unusually high — most displays and encoders max out at 60`, HINT)]
   return []
+}
+
+// Catches `scale=1920x1080` style typos: the scale filter (and its hardware
+// variants) require WIDTH and HEIGHT separated by ':' or as named args, never
+// 'x'. `-s` uses 'x' but inside a filter chain it is not a valid separator
+// and FFmpeg will refuse the filter graph.
+export function validateScaleFilter(s) {
+  if (!Array.isArray(s.vfAtoms) || s.vfAtoms.length === 0) return []
+  const HINT = 'Inside the scale filter use ":", e.g. scale=1920:1080 or scale=w=1920:h=1080. The "x" separator is only valid for -s'
+  const HINT_COMMA = 'Inside a filter, separate width and height with ":" — comma "," separates filters in the chain. Use scale=W:H, not scale=W,H'
+  const out = []
+  for (let i = 0; i < s.vfAtoms.length; i++) {
+    const a = s.vfAtoms[i]
+    if (a.name !== 'scale' && !a.name.startsWith('scale_')) continue
+    const w = a.args.w ?? a.args.width
+    const h = a.args.h ?? a.args.height
+    // Typo pattern: width contains a 'WxH' (or 'W×H') pair and height is missing.
+    if (h === undefined && typeof w === 'string' && /^\d+\s*[x×]\s*\d+$/.test(w)) {
+      out.push(err('l1_vf_scale_syntax', 'l1_vf_scale_syntax', '-vf',
+        `${a.name} value "${w}" uses the wrong separator — the scale filter requires "W:H", not "WxH"`, HINT))
+      continue
+    }
+    // Either dimension missing entirely (e.g. `scale=1920`).
+    if ((w === undefined || h === undefined) && (w !== undefined || h !== undefined)) {
+      // Special case: `scale=W,H` was split by the chain parser into
+      // `scale=W` followed by an orphan filter named `H`. Detect that the
+      // next atom has a numeric-only name to emit a clearer message.
+      const next = s.vfAtoms[i + 1]
+      if (h === undefined && typeof w === 'string' && /^\d+$/.test(w)
+          && next && /^-?\d+$/.test(next.name)) {
+        out.push(err('l1_vf_scale_syntax', 'l1_vf_scale_syntax', '-vf',
+          `${a.name}=${w},${next.name} uses "," between width and height — comma separates filters in the chain, use ":" instead (${a.name}=${w}:${next.name})`, HINT_COMMA))
+        continue
+      }
+      out.push(err('l1_vf_scale_syntax', 'l1_vf_scale_syntax', '-vf',
+        `${a.name} requires both width and height — use ${a.name}=W:H or ${a.name}=w=W:h=H`, HINT))
+    }
+  }
+  return out
 }
 
 export function validateGop(s) {

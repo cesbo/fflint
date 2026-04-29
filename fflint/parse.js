@@ -6,10 +6,20 @@
 //   const state = parse('ffmpeg -y -i ${i} -c:v h264_nvenc -preset p4 -b:v 4M -c:a aac -f mpegts ${o}')
 //   // → { videoCodec: 'h264_nvenc', preset: 'p4', bitrateMode: 'cbr', targetBitrate: '4M', ... }
 
+import { parseFilterChain, findDeinterlacer } from './vf-parse.js'
+import { normalizeSFrameSize } from './codec-data.js'
+
 // ─── Tokenize ─────────────────────────────────────────────────────────────────
 
 function tokenize(str) {
   return str.trim().match(/"[^"]*"|\S+/g) || []
+}
+
+function stripQuotes(s) {
+  if (typeof s !== 'string' || s.length < 2) return s
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'")))
+    return s.slice(1, -1)
+  return s
 }
 
 // ─── Flags that take no value (boolean / standalone) ──────────────────────────
@@ -54,6 +64,7 @@ function parseTokens(str) {
     fps: 'original', customFps: '',
     gop: '', bitrateMode: '', bitrate: '', maxrate: '', bufsize: '',
     deinterlaceFilter: '', nvdecDeint: '', forcedIdr: false,
+    vfChain: '', vfAtoms: [],
     pixFmt: '', level: '', scThreshold: '', bframes: '', refs: '', bsfVideo: 'none',
     fieldOrder: '', colorPrimaries: '', colorTrc: '', colorspace: '',
     audioEnabled: true, audioCodec: '',
@@ -119,10 +130,20 @@ function parseTokens(str) {
       case '-profile:v': i++; raw.vprofile = tokens[i] || ''; break
       case '-s': {
         i++
-        const size = tokens[i] || ''
+        const size = stripQuotes(tokens[i] || '')
         const known = ['1920x1080', '1280x720', '720x576', '720x480']
-        if (known.includes(size)) raw.frameSize = size
-        else { raw.frameSize = 'custom'; raw.customFrameSize = size }
+        const canonical = normalizeSFrameSize(size)
+        if (canonical && known.includes(canonical)) {
+          raw.frameSize = canonical
+        } else if (canonical) {
+          raw.frameSize = 'custom'
+          raw.customFrameSize = canonical
+        } else {
+          // Not a valid -s value (preset typo, expression, missing dimension).
+          // Keep the raw text so L1 can flag it via validateCustomFrameSize.
+          raw.frameSize = 'custom'
+          raw.customFrameSize = size
+        }
         break
       }
       case '-r': {
@@ -139,8 +160,26 @@ function parseTokens(str) {
       case '-crf': i++; raw.bitrateMode = 'crf'; raw.bitrate = tokens[i] || ''; break
       case '-maxrate': i++; raw.maxrate = tokens[i] || ''; break
       case '-bufsize': i++; raw.bufsize = tokens[i] || ''; break
-      case '-vf': case '-filter:v': i++; { const _fv = tokens[i] || ''; const _m = _fv.match(/\b(yadif_cuda|bwdif_cuda|yadif|bwdif)\b/); if (_m) raw.deinterlaceFilter = _m[1]; break }
-      case '-filter_complex': i++; { const _fv = tokens[i] || ''; const _m = _fv.match(/\b(yadif_cuda|bwdif_cuda|yadif|bwdif)\b/); if (_m) raw.deinterlaceFilter = _m[1]; break }
+      case '-vf': case '-filter:v': i++; {
+        const _fv = stripQuotes(tokens[i] || '')
+        if (_fv) {
+          const { chain, atoms } = parseFilterChain(_fv)
+          raw.vfChain = chain
+          raw.vfAtoms = atoms
+          const dein = findDeinterlacer(atoms)
+          if (dein) raw.deinterlaceFilter = dein
+        }
+        break
+      }
+      case '-filter_complex': i++; {
+        const _fv = stripQuotes(tokens[i] || '')
+        if (_fv) {
+          const { atoms } = parseFilterChain(_fv)
+          const dein = findDeinterlacer(atoms)
+          if (dein) raw.deinterlaceFilter = dein
+        }
+        break
+      }
       case '-forced-idr': i++; raw.forcedIdr = tokens[i] === '1' || tokens[i] === 'true'; break
       case '-c:a': i++; raw.audioCodec = tokens[i] || 'copy'; break
       case '-an': raw.audioEnabled = false; raw.audioCodec = 'disabled'; break
@@ -333,6 +372,18 @@ function toFflintState(s) {
   }
 
   if (s.logoPath) f.logoPath = s.logoPath
+
+  // Filter chain (preserved verbatim for round-trip + atoms for L2/L3 rules)
+  if (s.vfChain) f.vfChain = s.vfChain
+  if (Array.isArray(s.vfAtoms) && s.vfAtoms.length) f.vfAtoms = s.vfAtoms
+
+  // Frame size and frame rate are forwarded unconditionally so that L1/L2
+  // rules can see them even when no codec is set (FFmpeg honors -s/-r with
+  // the container default codec; the s_and_vf_scale rules must still fire).
+  if (s.frameSize && s.frameSize !== 'original') f.frameSize = s.frameSize
+  if (s.frameSize === 'custom' && s.customFrameSize) f.customFrameSize = s.customFrameSize
+  if (s.fps && s.fps !== 'original') f.fps = s.fps
+  if (s.fps === 'custom' && s.customFps) f.customFps = s.customFps
 
   if (!s.audioEnabled) {
     f.audioCodec = 'disabled'

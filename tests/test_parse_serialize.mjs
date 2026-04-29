@@ -127,6 +127,74 @@ console.log('\n\x1b[1m═══ Section 3: parse() — Video encoding options �
   assert('customFps', s.customFps === '23.976')
 }
 
+// ─── Named -s presets and alternate separators (FFmpeg's av_parse_video_size) ─
+
+{
+  // Named preset that resolves to a "common" size → frameSize is canonical
+  const s = parse('ffmpeg -i ${i} -c:v libx264 -s hd1080 -c:a copy -f mpegts ${o}')
+  assert('hd1080 → frameSize 1920x1080', s.frameSize === '1920x1080')
+  assert('hd1080 → no customFrameSize', !s.customFrameSize)
+}
+
+{
+  // Named preset that maps to the same canonical "common" size as a literal
+  const s = parse('ffmpeg -i ${i} -c:v libx264 -s pal -c:a copy -f mp4 ${o}')
+  assert('pal → frameSize 720x576', s.frameSize === '720x576')
+  assert('pal → no customFrameSize', !s.customFrameSize)
+}
+
+{
+  // Named preset with a less-common resolution → custom + canonical WxH
+  const s = parse('ffmpeg -i ${i} -c:v libx264 -s wuxga -c:a copy -f mp4 ${o}')
+  assert('wuxga → frameSize custom', s.frameSize === 'custom')
+  assert('wuxga → customFrameSize 1920x1200', s.customFrameSize === '1920x1200')
+}
+
+{
+  // Alternate separator '-' is normalized to canonical 'x'
+  const s = parse('ffmpeg -i ${i} -c:v libx264 -s 1920-1080 -c:a copy -f mpegts ${o}')
+  assert('1920-1080 → frameSize 1920x1080', s.frameSize === '1920x1080')
+}
+
+{
+  // Alternate separator ':' is normalized to canonical 'x'
+  const s = parse('ffmpeg -i ${i} -c:v libx264 -s 1280:720 -c:a copy -f mpegts ${o}')
+  assert('1280:720 → frameSize 1280x720', s.frameSize === '1280x720')
+}
+
+{
+  // Unknown / malformed preset is preserved as customFrameSize so L1 can flag
+  const s = parse('ffmpeg -i ${i} -c:v libx264 -s HD1080 -c:a copy -f mp4 ${o}')
+  assert('HD1080 (uppercase) → custom', s.frameSize === 'custom')
+  assert('HD1080 → customFrameSize preserved', s.customFrameSize === 'HD1080')
+}
+
+{
+  // Quoted -s value: surrounding quotes are stripped (consistent with -vf)
+  const s = parse('ffmpeg -i ${i} -c:v libx264 -s "1920x1080" -c:a copy -f mp4 ${o}')
+  assert('quoted -s → frameSize 1920x1080', s.frameSize === '1920x1080')
+  assert('quoted -s → no customFrameSize', !s.customFrameSize)
+}
+
+{
+  // Quoted invalid -s: quotes stripped before validation
+  const s = parse('ffmpeg -i ${i} -c:v libx264 -s "1080:-1" -c:a copy -f mp4 ${o}')
+  assert('quoted "1080:-1" → custom', s.frameSize === 'custom')
+  assert('quoted "1080:-1" → no surrounding quotes in state', s.customFrameSize === '1080:-1')
+  const errs = validate(s)
+  const r = errs.find(e => e.id === 'l1_framesize')
+  assert('non-positive dim → l1_framesize fires', !!r && r.severity === 'error')
+  assert('error mentions filter-only', r && /filter-only/i.test(r.message))
+}
+
+{
+  // -s 1920x0 → specific non-positive error
+  const s = parse('ffmpeg -i ${i} -s 1920x0 -f mpegts ${o}')
+  const r = validate(s).find(e => e.id === 'l1_framesize')
+  assert('zero dim → l1_framesize fires', !!r && r.severity === 'error')
+  assert('zero dim → mentions positive integers', r && /positive integer/i.test(r.message))
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 console.log('\n\x1b[1m═══ Section 4: parse() — Audio options ═══\x1b[0m')
 // ═══════════════════════════════════════════════════════════════════════════════

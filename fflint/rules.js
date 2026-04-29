@@ -6,10 +6,29 @@ import {
   LEVEL_LIMITS, H264_LEVEL_CODECS,
   CHANNEL_LAYOUT_CHANNELS, AUDIO_BITRATE_FLOOR,
 } from './codec-data.js'
+import { getScaleSize, hasHwScale } from './vf-parse.js'
 
 // Helper: true when the state requests any kind of looping.
 // Accepts both legacy boolean (true) and integer (-1 or N>0) models.
 const isLooping = s => s.streamLoop === true || (Number.isInteger(s.streamLoop) && s.streamLoop !== 0)
+
+// Helper: resolve the WxH that -s sets (handles 'custom' indirection and the
+// '-' separator accepted by L1).
+function resolveSFrameSize(s) {
+  if (!s.frameSize || s.frameSize === 'original') return null
+  const raw = s.frameSize === 'custom' ? s.customFrameSize : s.frameSize
+  if (!raw) return null
+  const m = String(raw).match(/^(\d+)[x-](\d+)$/)
+  if (!m) return null
+  return { w: m[1], h: m[2] }
+}
+
+// Helper: true only when v is a concrete positive pixel count.
+// Filter values like -1, -2, 0, iw/2, min(iw,1920), trunc(...) are valid
+// scale-filter forms but cannot be statically compared with -s.
+function isConcretePixels(v) {
+  return /^[1-9]\d*$/.test(String(v))
+}
 
 export const rules = [
 
@@ -1001,6 +1020,103 @@ export const rules = [
     severity: 'info', flag: '-hls_enc',
     check: (s) => s.hlsEnc === true && s.hlsSegmentType !== 'fmp4',
     message: 'HLS encryption with mpegts segments uses AES-128 — fMP4 segments support SAMPLE-AES/CBCS which is more efficient and required by some DRM systems',
+  },
+
+  // ── Layer 2: -s vs -vf scale= conflict ────────────────────────────────────
+  //
+  // Only triggered when BOTH -s and the scale filter use concrete positive
+  // pixel values. The filter forms `-1`, `-2`, `0`, `iw/2`, `min(iw,1920)`
+  // etc. are auto/expression modes that resolve at runtime and cannot be
+  // compared statically against -s.
+
+  {
+    id: 's_and_vf_scale_diff', group: 's_and_vf_scale_conflict', layer: 2,
+    severity: 'error', flag: '-vf',
+    check: (s) => {
+      const sfs = resolveSFrameSize(s)
+      if (!sfs) return false
+      const vfs = getScaleSize(s.vfAtoms)
+      if (!vfs) return false
+      if (!isConcretePixels(vfs.w) || !isConcretePixels(vfs.h)) return false
+      return sfs.w !== vfs.w || sfs.h !== vfs.h
+    },
+    message: (s) => {
+      const sfs = resolveSFrameSize(s)
+      const vfs = getScaleSize(s.vfAtoms)
+      return `-s ${sfs.w}x${sfs.h} conflicts with -vf scale=${vfs.w}:${vfs.h} — only one will take effect (the filter chain wins). Pick one.`
+    },
+  },
+  {
+    id: 's_and_vf_scale_redundant', group: 's_and_vf_scale_conflict', layer: 2,
+    severity: 'warning', flag: '-vf',
+    check: (s) => {
+      const sfs = resolveSFrameSize(s)
+      if (!sfs) return false
+      const vfs = getScaleSize(s.vfAtoms)
+      if (!vfs) return false
+      if (!isConcretePixels(vfs.w) || !isConcretePixels(vfs.h)) return false
+      return sfs.w === vfs.w && sfs.h === vfs.h
+    },
+    message: 'Both -s and -vf scale= specify the same size — redundant. Prefer using only -vf scale=W:H',
+  },
+  {
+    // Catch-all advisory for the case where one or both sides use auto
+    // (-1/-2/0) or expressions and we cannot statically compare. Same group
+    // as the diff/redundant rules so deduplicate() will keep only the
+    // highest-severity hit per command.
+    id: 's_and_vf_scale_present', group: 's_and_vf_scale_conflict', layer: 2,
+    severity: 'info', flag: '-vf',
+    check: (s) => !!resolveSFrameSize(s) && !!getScaleSize(s.vfAtoms),
+    message: '-s and -vf scale= are both set — the filter chain wins and -s is ignored. Keep only one to avoid confusion',
+  },
+
+  // ── Layer 3: scale filter is a no-op (cosmetic) ───────────────────────────
+  //
+  // Detects scale atoms whose width AND height resolve to the input
+  // dimensions: `0` (special "use input"), `-1`/`-2` (auto, with -1:-1
+  // collapsing to input), `iw`/`ih`/`in_w`/`in_h` (input-size constants),
+  // or omitted (defaults are iw/ih). Only fires when no other arg is
+  // present — `scale=0:0:format=yuv420p` or `scale=iw:ih:flags=lanczos`
+  // may be intentional pixel-format/algorithm coercion.
+
+  {
+    id: 'vf_scale_noop', group: 'vf_scale_noop', layer: 3,
+    severity: 'info', flag: '-vf',
+    check: (s) => {
+      if (!Array.isArray(s.vfAtoms) || s.vfAtoms.length === 0) return false
+      const NOOP = /^(0|-1|-2|iw|ih|in_w|in_h)$/
+      return s.vfAtoms.some(a => {
+        if (a.name !== 'scale' && !a.name.startsWith('scale_')) return false
+        const w = a.args.w ?? a.args.width
+        const h = a.args.h ?? a.args.height
+        const wNoop = w === undefined || (typeof w === 'string' && NOOP.test(w))
+        const hNoop = h === undefined || (typeof h === 'string' && NOOP.test(h))
+        if (!(wNoop && hNoop)) return false
+        // Reject if any non-dimension arg is present.
+        const extra = Object.keys(a.args).filter(k =>
+          k !== 'w' && k !== 'h' && k !== 'width' && k !== 'height')
+        return extra.length === 0
+      })
+    },
+    message: 'scale filter resolves to input dimensions (no-op) — it can be removed',
+  },
+
+  // ── Layer 3: prefer hardware scaler when hwaccel is enabled ───────────────
+
+  {
+    id: 'prefer_vf_scale_with_hwaccel', group: 'prefer_vf_scale_with_hwaccel', layer: 3,
+    severity: 'info', flag: '-s',
+    check: (s) => {
+      if (!s.hwaccel) return false
+      if (!resolveSFrameSize(s)) return false
+      if (hasHwScale(s.vfAtoms)) return false
+      return true
+    },
+    message: (s) => {
+      const map = { cuda: 'scale_cuda', vaapi: 'scale_vaapi', qsv: 'scale_qsv' }
+      const suggested = map[s.hwaccel] || `scale_${s.hwaccel}`
+      return `Using -s with -hwaccel ${s.hwaccel} forces a CPU rescale (frames are downloaded from GPU). Prefer -vf ${suggested}=W:H to keep the frame on the GPU`
+    },
   },
 
 ]
