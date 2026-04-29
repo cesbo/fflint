@@ -662,6 +662,76 @@ console.log('\n\x1b[1m═══ Section: Optional video/audio codec ═══\x1
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+console.log('\n\x1b[1m═══ Section: Subtitles ═══\x1b[0m')
+// ═══════════════════════════════════════════════════════════════════════════════
+
+{
+  // parse -sn → subtitleMode 'disable'
+  const s = parse('ffmpeg -i ${i} -c:v copy -c:a copy -sn -f mpegts ${o}')
+  assert('parse -sn → subtitleMode disable', s.subtitleMode === 'disable')
+  assert('-sn not pushed to passthrough', !s.passthroughPostInput || !s.passthroughPostInput.includes('-sn'))
+}
+
+{
+  // parse -c:s copy → subtitleMode 'copy'
+  const s = parse('ffmpeg -i ${i} -c:v copy -c:a copy -c:s copy -f mpegts ${o}')
+  assert('parse -c:s copy → subtitleMode copy', s.subtitleMode === 'copy')
+  assert('-c:s not pushed to passthrough', !s.passthroughPostInput || !s.passthroughPostInput.includes('-c:s'))
+}
+
+{
+  // Indexed specifier -c:s:0 copy
+  const s = parse('ffmpeg -i ${i} -c:v copy -c:a copy -c:s:0 copy -f mpegts ${o}')
+  assert('parse -c:s:0 copy → subtitleMode copy', s.subtitleMode === 'copy')
+}
+
+{
+  // serialize subtitleMode disable → -sn
+  const cmd = serialize({ videoCodec: 'copy', audioCodec: 'copy', subtitleMode: 'disable', outputFormat: 'mpegts' })
+  assert('serialize disable → -sn', cmd.includes(' -sn '))
+  assert('serialize disable does not emit -c:s', !cmd.includes('-c:s'))
+}
+
+{
+  // serialize subtitleMode copy → -c:s copy
+  const cmd = serialize({ videoCodec: 'copy', audioCodec: 'copy', subtitleMode: 'copy', outputFormat: 'mpegts' })
+  assert('serialize copy → -c:s copy', cmd.includes('-c:s copy'))
+  assert('serialize copy does not emit -sn', !cmd.includes('-sn'))
+}
+
+{
+  // No subtitleMode → no subtitle flag emitted
+  const cmd = serialize({ videoCodec: 'copy', audioCodec: 'copy', outputFormat: 'mpegts' })
+  assert('no subtitleMode → no -sn', !cmd.includes('-sn'))
+  assert('no subtitleMode → no -c:s', !cmd.includes('-c:s'))
+}
+
+{
+  // Round-trip -sn
+  const original = 'ffmpeg -y -hide_banner -i ${i} -c:v copy -c:a copy -sn -f mpegts ${o}'
+  const state1 = parse(original)
+  const state2 = parse(serialize(state1))
+  assert('RT -sn subtitleMode', state1.subtitleMode === 'disable' && state2.subtitleMode === 'disable')
+}
+
+{
+  // Round-trip -c:s copy
+  const original = 'ffmpeg -y -hide_banner -i ${i} -c:v copy -c:a copy -c:s copy -f mpegts ${o}'
+  const state1 = parse(original)
+  const state2 = parse(serialize(state1))
+  assert('RT -c:s copy subtitleMode', state1.subtitleMode === 'copy' && state2.subtitleMode === 'copy')
+}
+
+{
+  // Layer1 enum validation flags out-of-enum value once parse forwards it
+  const state = parse('ffmpeg -i ${i} -c:v copy -c:a copy -c:s mov_text -f mp4 ${o}')
+  assert('parse -c:s mov_text → subtitleMode mov_text', state.subtitleMode === 'mov_text')
+  const errs = validate(state)
+  const subErr = errs.find(e => e.id === 'l1_subtitle_mode')
+  assert('validate flags invalid subtitleMode', subErr !== undefined)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 console.log(`\n\x1b[1m═══ Results: ${pass}/${pass + fail} passed ═══\x1b[0m`)
 if (fail > 0) {
   console.log(`\x1b[31m${fail} test(s) FAILED\x1b[0m`)

@@ -176,6 +176,14 @@ export function serialize(state, options = {}) {
     }
   }
 
+  // ── Subtitles ──────────────────────────────────────────────────────────────
+
+  if (s.subtitleMode === 'disable') {
+    p.push('-sn')
+  } else if (s.subtitleMode === 'copy') {
+    p.push('-c:s', 'copy')
+  }
+
   // ── Output format ──────────────────────────────────────────────────────────
 
   if (s.outputFormat) p.push('-f', s.outputFormat)

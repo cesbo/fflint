@@ -25,7 +25,7 @@ function stripQuotes(s) {
 // ─── Flags that take no value (boolean / standalone) ──────────────────────────
 
 const NO_VALUE_FLAGS = new Set([
-  'ffmpeg', '-y', '-hide_banner', '-re', '-copyts', '-vn', '-an', '-nostdin',
+  'ffmpeg', '-y', '-hide_banner', '-re', '-copyts', '-vn', '-an', '-sn', '-nostdin',
 ])
 
 // ─── All recognized flags ─────────────────────────────────────────────────────
@@ -40,7 +40,7 @@ const KNOWN_FLAGS = new Set([
   '-color_primaries', '-color_trc', '-colorspace', '-color_range',
   '-bsf:v', '-vf', '-filter:v', '-filter_complex', '-forced-idr',
   '-x264opts', '-x265-params', '-lookahead', '-vframes',
-  '-c:a', '-an', '-ar', '-ac', '-b:a', '-dialnorm', '-bsf:a', '-af',
+  '-c:a', '-an', '-c:s', '-sn', '-ar', '-ac', '-b:a', '-dialnorm', '-bsf:a', '-af',
   '-channel_layout', '-fps_mode', '-max_muxing_queue_size',
   '-reconnect', '-reconnect_streamed', '-listen', '-aspect',
   '-hwaccel_device',
@@ -70,6 +70,7 @@ function parseTokens(str) {
     audioEnabled: true, audioCodec: '',
     sampleRate: 'original', channels: 'original', audioBitrate: 'default',
     dialnorm: '', bsfAudio: 'none',
+    subtitleMode: '',
     outputFormat: 'mpegts',
     hlsTime: '4', hlsListSize: '5', hlsFlags: '', hlsSegmentType: 'mpegts',
     avoidNegativeTs: '',
@@ -183,6 +184,8 @@ function parseTokens(str) {
       case '-forced-idr': i++; raw.forcedIdr = tokens[i] === '1' || tokens[i] === 'true'; break
       case '-c:a': i++; raw.audioCodec = tokens[i] || 'copy'; break
       case '-an': raw.audioEnabled = false; raw.audioCodec = 'disabled'; break
+      case '-c:s': i++; raw.subtitleMode = tokens[i] || 'copy'; break
+      case '-sn': raw.subtitleMode = 'disable'; break
       case '-ar': i++; raw.sampleRate = tokens[i] || 'original'; break
       case '-ac': {
         i++
@@ -253,6 +256,7 @@ function parseTokens(str) {
             const val = tokens[i] || ''
             if (base === '-c:v' && passedInput && !raw.videoCodec) raw.videoCodec = val || 'copy'
             else if (base === '-c:a' && !raw.audioCodec) raw.audioCodec = val || 'copy'
+            else if (base === '-c:s' && !raw.subtitleMode) raw.subtitleMode = val || 'copy'
             else if (base === '-b:v' && !raw.bitrate) raw.bitrate = val
             else if (base === '-b:a' && raw.audioBitrate === 'default') raw.audioBitrate = val
             break
@@ -430,6 +434,7 @@ function toFflintState(s) {
 
   if (s.listen) { const n = parseInt(s.listen, 10); f.listen = isNaN(n) ? s.listen : n }
   if (s.fpsMode) f.fpsSyncMode = s.fpsMode
+  if (s.subtitleMode) f.subtitleMode = s.subtitleMode
 
   // Passthrough flags preserved for round-trip
   if (s.passthroughPreInput && s.passthroughPreInput.length)
