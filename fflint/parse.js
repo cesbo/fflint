@@ -82,6 +82,7 @@ function parseTokens(str) {
     inputType: 'udp', logoPath: '',
     passthroughPreInput: [], passthroughPostInput: [],
     tune: '', tier: '', lookahead: '',
+    _flagOrder: [],
   }
 
   const tokens = tokenize(str)
@@ -95,18 +96,19 @@ function parseTokens(str) {
       case 'ffmpeg': break
       case '-y': break
       case '-hide_banner': break
-      case '-re': raw.re = true; break
-      case '-stream_loop': i++; raw.loop = true; break
-      case '-hwaccel': i++; raw.hwaccel = tokens[i] || ''; break
-      case '-hwaccel_output_format': i++; raw.hwaccelOutputFormat = tokens[i] || ''; break
-      case '-deint': i++; raw.nvdecDeint = tokens[i] || ''; break
-      case '-gpu': i++; raw.gpuIndex = tokens[i] || ''; break
+      case '-re': raw.re = true; raw._flagOrder.push('re'); break
+      case '-stream_loop': i++; raw.loop = true; raw._flagOrder.push('streamLoop'); break
+      case '-hwaccel': i++; raw.hwaccel = tokens[i] || ''; raw._flagOrder.push('hwaccel'); break
+      case '-hwaccel_output_format': i++; raw.hwaccelOutputFormat = tokens[i] || ''; raw._flagOrder.push('hwaccelOutputFormat'); break
+      case '-deint': i++; raw.nvdecDeint = tokens[i] || ''; raw._flagOrder.push('nvdecDeint'); break
+      case '-gpu': i++; raw.gpuIndex = tokens[i] || ''; raw._flagOrder.push('gpuIndex'); break
       case '-i': i++; {
         let inp = tokens[i] || ''
         // Strip surrounding quotes so "\"${i}\"" becomes "${i}"
         if ((inp.startsWith('"') && inp.endsWith('"')) || (inp.startsWith("'") && inp.endsWith("'")))
           inp = inp.slice(1, -1)
         inputCount++
+        if (!passedInput) raw._flagOrder.push('_input')
         if (inp === '-' || inp === 'pipe:0') raw.inputType = 'pipe'
         else if (!passedInput) {
           if (inp !== '${i}') {
@@ -123,12 +125,12 @@ function parseTokens(str) {
         passedInput = true
         break
       }
-      case '-c': i++; { const val = tokens[i] || 'copy'; if (passedInput) { raw.videoCodec = val; raw.audioCodec = val } }; break
-      case '-c:v': i++; if (!passedInput) { raw.inputDecoderCodec = tokens[i] || '' } else { raw.videoCodec = tokens[i] || 'copy' }; break
-      case '-vn': raw.videoEnabled = false; raw.videoCodec = 'disabled'; break
-      case '-preset': i++; raw.preset = tokens[i] || ''; break
-      case '-tune': i++; raw.tune = tokens[i] || ''; break
-      case '-profile:v': i++; raw.vprofile = tokens[i] || ''; break
+      case '-c': i++; { const val = tokens[i] || 'copy'; if (passedInput) { raw.videoCodec = val; raw.audioCodec = val; raw._flagOrder.push('videoCodec', 'audioCodec') } }; break
+      case '-c:v': i++; if (!passedInput) { raw.inputDecoderCodec = tokens[i] || '' } else { raw.videoCodec = tokens[i] || 'copy'; raw._flagOrder.push('videoCodec') }; break
+      case '-vn': raw.videoEnabled = false; raw.videoCodec = 'disabled'; raw._flagOrder.push('videoCodec'); break
+      case '-preset': i++; raw.preset = tokens[i] || ''; raw._flagOrder.push('preset'); break
+      case '-tune': i++; raw.tune = tokens[i] || ''; raw._flagOrder.push('tune'); break
+      case '-profile:v': i++; raw.vprofile = tokens[i] || ''; raw._flagOrder.push('profile'); break
       case '-s': {
         i++
         const size = stripQuotes(tokens[i] || '')
@@ -145,6 +147,7 @@ function parseTokens(str) {
           raw.frameSize = 'custom'
           raw.customFrameSize = size
         }
+        raw._flagOrder.push('frameSize')
         break
       }
       case '-r': {
@@ -153,14 +156,15 @@ function parseTokens(str) {
         const known = ['25', '29.97', '30', '50', '59.94', '60']
         if (known.includes(fps)) raw.fps = fps
         else { raw.fps = 'custom'; raw.customFps = fps }
+        raw._flagOrder.push('fps')
         break
       }
-      case '-g': i++; raw.gop = tokens[i] || ''; break
-      case '-keyint_min': i++; raw.keyintMin = tokens[i] || ''; break
-      case '-b:v': i++; raw.bitrate = tokens[i] || ''; break
-      case '-crf': i++; raw.bitrateMode = 'crf'; raw.bitrate = tokens[i] || ''; break
-      case '-maxrate': i++; raw.maxrate = tokens[i] || ''; break
-      case '-bufsize': i++; raw.bufsize = tokens[i] || ''; break
+      case '-g': i++; raw.gop = tokens[i] || ''; raw._flagOrder.push('gop'); break
+      case '-keyint_min': i++; raw.keyintMin = tokens[i] || ''; raw._flagOrder.push('keyintMin'); break
+      case '-b:v': i++; raw.bitrate = tokens[i] || ''; raw._flagOrder.push('targetBitrate'); break
+      case '-crf': i++; raw.bitrateMode = 'crf'; raw.bitrate = tokens[i] || ''; raw._flagOrder.push('targetBitrate'); break
+      case '-maxrate': i++; raw.maxrate = tokens[i] || ''; raw._flagOrder.push('maxrate'); break
+      case '-bufsize': i++; raw.bufsize = tokens[i] || ''; raw._flagOrder.push('bufsize'); break
       case '-vf': case '-filter:v': i++; {
         const _fv = stripQuotes(tokens[i] || '')
         if (_fv) {
@@ -170,6 +174,7 @@ function parseTokens(str) {
           const dein = findDeinterlacer(atoms)
           if (dein) raw.deinterlaceFilter = dein
         }
+        raw._flagOrder.push('vfChain')
         break
       }
       case '-filter_complex': i++; {
@@ -179,70 +184,72 @@ function parseTokens(str) {
           const dein = findDeinterlacer(atoms)
           if (dein) raw.deinterlaceFilter = dein
         }
+        raw._flagOrder.push('filterComplex')
         break
       }
-      case '-forced-idr': i++; raw.forcedIdr = tokens[i] === '1' || tokens[i] === 'true'; break
-      case '-c:a': i++; raw.audioCodec = tokens[i] || 'copy'; break
-      case '-an': raw.audioEnabled = false; raw.audioCodec = 'disabled'; break
-      case '-c:s': i++; raw.subtitleMode = tokens[i] || 'copy'; break
-      case '-sn': raw.subtitleMode = 'disable'; break
-      case '-ar': i++; raw.sampleRate = tokens[i] || 'original'; break
+      case '-forced-idr': i++; raw.forcedIdr = tokens[i] === '1' || tokens[i] === 'true'; raw._flagOrder.push('forcedIdr'); break
+      case '-c:a': i++; raw.audioCodec = tokens[i] || 'copy'; raw._flagOrder.push('audioCodec'); break
+      case '-an': raw.audioEnabled = false; raw.audioCodec = 'disabled'; raw._flagOrder.push('audioCodec'); break
+      case '-c:s': i++; raw.subtitleMode = tokens[i] || 'copy'; raw._flagOrder.push('subtitleMode'); break
+      case '-sn': raw.subtitleMode = 'disable'; raw._flagOrder.push('subtitleMode'); break
+      case '-ar': i++; raw.sampleRate = tokens[i] || 'original'; raw._flagOrder.push('sampleRate'); break
       case '-ac': {
         i++
         const ch = tokens[i] || ''
         if      (ch === '1') raw.channels = 'mono'
         else if (ch === '2') raw.channels = 'stereo'
         else if (ch === '6') raw.channels = '5.1'
+        raw._flagOrder.push('channels')
         break
       }
-      case '-b:a': i++; raw.audioBitrate = tokens[i] || 'default'; break
-      case '-f': i++; raw.outputFormat = tokens[i] || 'mpegts'; break
-      case '-hls_time': i++; raw.hlsTime = tokens[i] || '4'; break
-      case '-hls_list_size': i++; raw.hlsListSize = tokens[i] || '5'; break
-      case '-hls_flags': i++; raw.hlsFlags = tokens[i] || ''; break
-      case '-hls_segment_type': i++; raw.hlsSegmentType = tokens[i] || 'mpegts'; break
-      case '-fflags': i++; raw.fflags = (tokens[i] || '').split('+').filter(Boolean).map(f => '+' + f); break
-      case '-use_wallclock_as_timestamps': i++; raw.wallclock = tokens[i] === '1'; break
-      case '-max_delay': i++; raw.maxDelay = tokens[i] || ''; break
-      case '-timeout': i++; raw.timeout = tokens[i] || ''; break
-      case '-thread_queue_size': i++; raw.threadQueueSize = tokens[i] || ''; break
-      case '-analyzeduration': i++; raw.analyzeduration = tokens[i] || ''; break
-      case '-probesize': i++; raw.probesize = tokens[i] || ''; break
-      case '-copyts': raw.copyts = true; break
-      case '-map': i++; raw.maps.push(tokens[i] || ''); break
-      case '-pix_fmt': i++; raw.pixFmt = tokens[i] || ''; break
-      case '-level:v': i++; raw.level = tokens[i] || ''; break
-      case '-sc_threshold': i++; raw.scThreshold = tokens[i] || ''; break
-      case '-bf': i++; raw.bframes = tokens[i] || ''; break
-      case '-refs': i++; raw.refs = tokens[i] || ''; break
-      case '-bsf:v': i++; raw.bsfVideo = tokens[i] || 'none'; break
-      case '-field_order': i++; raw.fieldOrder = tokens[i] || ''; break
-      case '-color_primaries': i++; raw.colorPrimaries = tokens[i] || ''; break
-      case '-color_trc': i++; raw.colorTrc = tokens[i] || ''; break
-      case '-colorspace': i++; raw.colorspace = tokens[i] || ''; break
-      case '-dialnorm': i++; raw.dialnorm = tokens[i] || ''; break
-      case '-bsf:a': i++; raw.bsfAudio = tokens[i] || 'none'; break
-      case '-avoid_negative_ts': i++; raw.avoidNegativeTs = tokens[i] || ''; break
-      case '-mpegts_service_id': i++; raw.mpegtsServiceId = tokens[i] || ''; break
-      case '-mpegts_pmt_start_pid': i++; raw.mpegtsPmtStartPid = tokens[i] || ''; break
-      case '-mpegts_start_pid': i++; raw.mpegtsStartPid = tokens[i] || ''; break
-      case '-mpegts_flags': i++; raw.mpegtsFlags = (tokens[i] || '').split('+').filter(Boolean); break
-      case '-pcr_period': i++; raw.pcrPeriod = tokens[i] || ''; break
-      case '-level': i++; raw.level = tokens[i] || ''; break
-      case '-reconnect': i++; raw.reconnect = tokens[i] === '1'; break
-      case '-reconnect_streamed': i++; raw.reconnectStreamed = tokens[i] === '1'; break
-      case '-channel_layout': i++; raw.channelLayout = tokens[i] || ''; break
-      case '-listen': i++; raw.listen = tokens[i] || ''; break
-      case '-aspect': i++; raw.aspect = tokens[i] || ''; break
-      case '-fps_mode': i++; raw.fpsMode = tokens[i] || ''; break
-      case '-max_muxing_queue_size': i++; raw.maxMuxingQueueSize = tokens[i] || ''; break
+      case '-b:a': i++; raw.audioBitrate = tokens[i] || 'default'; raw._flagOrder.push('audioBitrate'); break
+      case '-f': i++; raw.outputFormat = tokens[i] || 'mpegts'; raw._flagOrder.push('outputFormat'); break
+      case '-hls_time': i++; raw.hlsTime = tokens[i] || '4'; raw._flagOrder.push('hlsTime'); break
+      case '-hls_list_size': i++; raw.hlsListSize = tokens[i] || '5'; raw._flagOrder.push('hlsListSize'); break
+      case '-hls_flags': i++; raw.hlsFlags = tokens[i] || ''; raw._flagOrder.push('hlsFlags'); break
+      case '-hls_segment_type': i++; raw.hlsSegmentType = tokens[i] || 'mpegts'; raw._flagOrder.push('hlsSegmentType'); break
+      case '-fflags': i++; raw.fflags = (tokens[i] || '').split('+').filter(Boolean).map(f => '+' + f); raw._flagOrder.push('fflags'); break
+      case '-use_wallclock_as_timestamps': i++; raw.wallclock = tokens[i] === '1'; raw._flagOrder.push('useWallclock'); break
+      case '-max_delay': i++; raw.maxDelay = tokens[i] || ''; raw._flagOrder.push('maxDelay'); break
+      case '-timeout': i++; raw.timeout = tokens[i] || ''; raw._flagOrder.push('timeout'); break
+      case '-thread_queue_size': i++; raw.threadQueueSize = tokens[i] || ''; raw._flagOrder.push('threadQueueSize'); break
+      case '-analyzeduration': i++; raw.analyzeduration = tokens[i] || ''; raw._flagOrder.push('analyzeDuration'); break
+      case '-probesize': i++; raw.probesize = tokens[i] || ''; raw._flagOrder.push('probeSize'); break
+      case '-copyts': raw.copyts = true; raw._flagOrder.push('copyts'); break
+      case '-map': i++; raw.maps.push(tokens[i] || ''); raw._flagOrder.push('maps'); break
+      case '-pix_fmt': i++; raw.pixFmt = tokens[i] || ''; raw._flagOrder.push('pixFmt'); break
+      case '-level:v': i++; raw.level = tokens[i] || ''; raw._flagOrder.push('level'); break
+      case '-sc_threshold': i++; raw.scThreshold = tokens[i] || ''; raw._flagOrder.push('scThreshold'); break
+      case '-bf': i++; raw.bframes = tokens[i] || ''; raw._flagOrder.push('bframes'); break
+      case '-refs': i++; raw.refs = tokens[i] || ''; raw._flagOrder.push('refs'); break
+      case '-bsf:v': i++; raw.bsfVideo = tokens[i] || 'none'; raw._flagOrder.push('bsfVideo'); break
+      case '-field_order': i++; raw.fieldOrder = tokens[i] || ''; raw._flagOrder.push('fieldOrder'); break
+      case '-color_primaries': i++; raw.colorPrimaries = tokens[i] || ''; raw._flagOrder.push('colorPrimaries'); break
+      case '-color_trc': i++; raw.colorTrc = tokens[i] || ''; raw._flagOrder.push('colorTrc'); break
+      case '-colorspace': i++; raw.colorspace = tokens[i] || ''; raw._flagOrder.push('colorspace'); break
+      case '-dialnorm': i++; raw.dialnorm = tokens[i] || ''; raw._flagOrder.push('dialnorm'); break
+      case '-bsf:a': i++; raw.bsfAudio = tokens[i] || 'none'; raw._flagOrder.push('bsfAudio'); break
+      case '-avoid_negative_ts': i++; raw.avoidNegativeTs = tokens[i] || ''; raw._flagOrder.push('avoidNegativeTs'); break
+      case '-mpegts_service_id': i++; raw.mpegtsServiceId = tokens[i] || ''; raw._flagOrder.push('mpegtsServiceId'); break
+      case '-mpegts_pmt_start_pid': i++; raw.mpegtsPmtStartPid = tokens[i] || ''; raw._flagOrder.push('mpegtsPmtStartPid'); break
+      case '-mpegts_start_pid': i++; raw.mpegtsStartPid = tokens[i] || ''; raw._flagOrder.push('mpegtsStartPid'); break
+      case '-mpegts_flags': i++; raw.mpegtsFlags = (tokens[i] || '').split('+').filter(Boolean); raw._flagOrder.push('mpegtsFlags'); break
+      case '-pcr_period': i++; raw.pcrPeriod = tokens[i] || ''; raw._flagOrder.push('pcrPeriod'); break
+      case '-level': i++; raw.level = tokens[i] || ''; raw._flagOrder.push('level'); break
+      case '-reconnect': i++; raw.reconnect = tokens[i] === '1'; raw._flagOrder.push('reconnect'); break
+      case '-reconnect_streamed': i++; raw.reconnectStreamed = tokens[i] === '1'; raw._flagOrder.push('reconnectStreamed'); break
+      case '-channel_layout': i++; raw.channelLayout = tokens[i] || ''; raw._flagOrder.push('channelLayout'); break
+      case '-listen': i++; raw.listen = tokens[i] || ''; raw._flagOrder.push('listen'); break
+      case '-aspect': i++; raw.aspect = tokens[i] || ''; raw._flagOrder.push('aspect'); break
+      case '-fps_mode': i++; raw.fpsMode = tokens[i] || ''; raw._flagOrder.push('fpsSyncMode'); break
+      case '-max_muxing_queue_size': i++; raw.maxMuxingQueueSize = tokens[i] || ''; raw._flagOrder.push('maxMuxingQueueSize'); break
       case '-af': i++; break
       case '-nostdin': break
       case '-loglevel': case '-v': i++; break
       case '-color_range': i++; break
       case '-x264opts': case '-x265-params': i++; break
-      case '-tier': i++; raw.tier = tokens[i] || ''; break
-      case '-lookahead': i++; raw.lookahead = tokens[i] || ''; break
+      case '-tier': i++; raw.tier = tokens[i] || ''; raw._flagOrder.push('tier'); break
+      case '-lookahead': i++; raw.lookahead = tokens[i] || ''; raw._flagOrder.push('lookahead'); break
       case '-hwaccel_device': i++; break
       case '-vframes': i++; break
       case '-hls_segment_filename': i++; break
@@ -441,6 +448,10 @@ function toFflintState(s) {
     f.passthroughPreInput = s.passthroughPreInput
   if (s.passthroughPostInput && s.passthroughPostInput.length)
     f.passthroughPostInput = s.passthroughPostInput
+
+  // Flag order metadata for order-preserving serialization
+  if (Array.isArray(s._flagOrder) && s._flagOrder.length)
+    f._flagOrder = s._flagOrder
 
   return f
 }
