@@ -2,6 +2,7 @@
 // Usage: node test_harden.mjs
 
 import { validateRaw } from '../fflint/validate-raw.js'
+import { parse, validate } from '../fflint/fflint.js'
 
 let pass = 0, fail = 0
 
@@ -217,6 +218,45 @@ check('Copy codec + preset → warning',
 check('-crf + -b:v still caught',
   validateRaw('ffmpeg -i ${i} -c:v libx264 -crf 23 -b:v 4M -c:a aac -f mpegts ${o}'),
   r => has(r, 'error', '-crf and -b:v'))
+
+// ═══════════════════════════════════════════════════════════════════════════════
+console.log('\n═══ Phase 7: HLS segment duration (-hls_time) validation ═══')
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// 7.1 Non-numeric -hls_time → error
+check('Non-numeric -hls_time "ololo10" → error',
+  validate(parse('ffmpeg -i ${i} -c:v libx264 -b:v 4M -c:a aac -f hls -hls_time ololo10 ${o}')),
+  r => has(r, 'error', 'HLS segment duration'))
+
+// 7.2 -hls_time 0 → warning below minimum
+check('-hls_time 0 → warning below recommended minimum',
+  validate(parse('ffmpeg -i ${i} -c:v libx264 -b:v 4M -c:a aac -f hls -hls_time 0 ${o}')),
+  r => has(r, 'warning', 'below recommended minimum'))
+
+// 7.3 -hls_time 1 → no warning (at boundary)
+check('-hls_time 1 → no hls_time warning',
+  validate(parse('ffmpeg -i ${i} -c:v libx264 -b:v 4M -c:a aac -f hls -hls_time 1 ${o}')),
+  r => r.every(x => x.id !== 'l1_hls_time'))
+
+// 7.4 -hls_time 6 → no warning (standard value)
+check('-hls_time 6 → no hls_time warning',
+  validate(parse('ffmpeg -i ${i} -c:v libx264 -b:v 4M -c:a aac -f hls -hls_time 6 ${o}')),
+  r => r.every(x => x.id !== 'l1_hls_time'))
+
+// 7.5 -hls_time 60 → no warning (at boundary)
+check('-hls_time 60 → no hls_time warning',
+  validate(parse('ffmpeg -i ${i} -c:v libx264 -b:v 4M -c:a aac -f hls -hls_time 60 ${o}')),
+  r => r.every(x => x.id !== 'l1_hls_time'))
+
+// 7.6 -hls_time 61 → warning about high latency
+check('-hls_time 61 → warning high latency',
+  validate(parse('ffmpeg -i ${i} -c:v libx264 -b:v 4M -c:a aac -f hls -hls_time 61 ${o}')),
+  r => has(r, 'warning', 'high latency'))
+
+// 7.7 -hls_time 120 → warning about high latency
+check('-hls_time 120 → warning high latency',
+  validate(parse('ffmpeg -i ${i} -c:v libx264 -b:v 4M -c:a aac -f hls -hls_time 120 ${o}')),
+  r => has(r, 'warning', 'high latency'))
 
 // ═══════════════════════════════════════════════════════════════════════════════
 console.log(`\n═══ Results: ${pass}/${pass + fail} passed ═══\n`)

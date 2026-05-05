@@ -161,13 +161,16 @@ export function validateMpegtsServiceId(s) {
 
 export function validateHlsTime(s) {
   if (s.hlsTime === undefined) return []
-  const HINT = '2–4 s for low-latency HLS (LL-HLS). 6 s is the common default. 10 s for stable VOD. Recommended: 6'
-  if (!Number.isInteger(s.hlsTime) || s.hlsTime <= 0 || s.hlsTime > 3600)
+  const HINT = '1–2 s — ultra-low latency (LL-HLS, near-real-time streaming). 2–4 s — low latency (IPTV/Live). 6–10 s — standard (common default: 6)'
+  if (!Number.isInteger(s.hlsTime) || s.hlsTime < 0 || s.hlsTime > 3600)
     return [err('l1_hls_time', 'l1_hls_time', '-hls_time',
-      'HLS segment duration must be an integer between 1 and 3600 seconds', HINT)]
-  if (s.hlsTime > 30)
+      'HLS segment duration must be a non-negative integer up to 3600 seconds', HINT)]
+  if (s.hlsTime < 1)
     return [warn('l1_hls_time', 'l1_hls_time', '-hls_time',
-      `HLS segment duration ${s.hlsTime}s is very long — increases seek latency and startup delay`, HINT)]
+      `HLS segment duration ${s.hlsTime}s is below recommended minimum — keep at ≥ 1s`, HINT)]
+  if (s.hlsTime > 60)
+    return [warn('l1_hls_time', 'l1_hls_time', '-hls_time',
+      `HLS segment duration ${s.hlsTime}s is very high — high latency for viewers`, HINT)]
   return []
 }
 
