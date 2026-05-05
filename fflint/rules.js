@@ -556,7 +556,7 @@ export const rules = [
   {
     id: 'gpu_index_no_hwaccel', group: 'gpu_index', layer: 2,
     severity: 'warning', flag: '-gpu',
-    check: (s) => s.gpuIndex !== undefined && !isTemplateVar(s.gpuIndex) && s.gpuIndex >= 0 && !isTemplateVar(s.hwaccel) && (!s.hwaccel || s.hwaccel === 'none'),
+    check: (s) => s.gpuIndex !== undefined && !isTemplateVar(s.gpuIndex) && s.gpuIndex >= 0 && (!s.hwaccel || s.hwaccel === 'none'),
     message: (s) => `-gpu ${s.gpuIndex} selects the NVENC encode device but -hwaccel is not set — the decoder will still use CPU. Add -hwaccel cuda to route the full pipeline through GPU ${s.gpuIndex}`,
   },
 

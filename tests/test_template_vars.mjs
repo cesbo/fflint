@@ -16,9 +16,7 @@ function assert(cond, label) {
 }
 
 function hasId(results, id)       { return results.some(r => r.id === id) }
-function hasSev(results, sev)     { return results.some(r => r.severity === sev) }
 function hasErr(results)          { return results.some(r => r.severity === 'error') }
-function noErr(results)           { return !hasErr(results) }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 console.log('\n═══ L1: Bitrate template variables ═══')
