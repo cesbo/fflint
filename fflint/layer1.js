@@ -21,6 +21,11 @@ const BITRATE_RE   = /^\d+(\.\d+)?[kKmMgG]?$/i
 const FRAMESIZE_RE = /^\d{2,5}[x-]\d{2,5}$/
 const INT32_MAX    = 2_147_483_647
 
+// Returns true when v is a valid template variable reference: ${identifier}
+// where identifier is Latin letters, digits, and underscores — no spaces.
+// Example: ${gpu9} → true, ${g pu} → false (would be split by tokenizer anyway)
+const isTemplateVar = v => typeof v === 'string' && /^\$\{[a-zA-Z0-9_]+\}$/.test(v)
+
 export function validateLayer1(s) {
   return [
     // ── Enum validators ──────────────────────────────────────────────────────
@@ -94,6 +99,7 @@ export function validateLayer1(s) {
 
 export function validateKeyintMin(s) {
   if (s.keyintMin === undefined) return []
+  if (isTemplateVar(s.keyintMin)) return []
   const HINT = 'Typically GOP/2. For 25 fps + 2 s GOP: keyintMin=25. Recommended: set equal to fps to guarantee at least 1 keyframe/sec'
   if (!Number.isInteger(s.keyintMin) || s.keyintMin <= 0 || s.keyintMin > INT32_MAX)
     return [err('l1_keyint_min', 'l1_keyint_min', '-keyint_min',
@@ -106,6 +112,7 @@ export function validateKeyintMin(s) {
 
 export function validateScThreshold(s) {
   if (s.scThreshold === undefined) return []
+  if (isTemplateVar(s.scThreshold)) return []
   const HINT = '0 = disable scene cut detection (strongly recommended for live/IPTV to keep fixed-GOP). FFmpeg default: 40'
   if (typeof s.scThreshold === 'string' && s.scThreshold.startsWith('-'))
     return [err('l1_sc_threshold', 'l1_sc_threshold', '-sc_threshold',
@@ -124,6 +131,7 @@ export function validateScThreshold(s) {
 
 export function validateBframes(s) {
   if (s.bframes === undefined) return []
+  if (isTemplateVar(s.bframes)) return []
   const HINT = '0 for live/low-latency (no delay). 2–3 for VOD H.264 quality. HEVC supports up to 8. Recommended: 0 for live, 2 for VOD'
   if (typeof s.bframes === 'string' && s.bframes.startsWith('-'))
     return [err('l1_bframes', 'l1_bframes', '-bf',
@@ -138,6 +146,7 @@ export function validateBframes(s) {
 
 export function validateRefs(s) {
   if (s.refs === undefined) return []
+  if (isTemplateVar(s.refs)) return []
   const HINT = '1 = fastest decode/lowest latency. 3–5 = typical quality/speed balance. Higher values improve compression but increase decoder memory. Recommended: 3'
   if (typeof s.refs === 'string' && s.refs.startsWith('-'))
     return [err('l1_refs', 'l1_refs', '-refs',
@@ -152,6 +161,7 @@ export function validateRefs(s) {
 
 export function validateMpegtsServiceId(s) {
   if (s.mpegtsServiceId === undefined) return []
+  if (isTemplateVar(s.mpegtsServiceId)) return []
   const HINT = 'Must be unique per multiplex. Typical: 1. Range 1–65535 (16-bit). Matches the SID in SDT/PAT tables'
   if (!Number.isInteger(s.mpegtsServiceId) || s.mpegtsServiceId < 1 || s.mpegtsServiceId > 65535)
     return [err('l1_service_id', 'l1_service_id', '-mpegts_service_id',
@@ -161,6 +171,7 @@ export function validateMpegtsServiceId(s) {
 
 export function validateHlsTime(s) {
   if (s.hlsTime === undefined) return []
+  if (isTemplateVar(s.hlsTime)) return []
   const HINT = '2–4 s for low-latency HLS (LL-HLS). 6 s is the common default. 10 s for stable VOD. Recommended: 6'
   if (!Number.isInteger(s.hlsTime) || s.hlsTime <= 0 || s.hlsTime > 3600)
     return [err('l1_hls_time', 'l1_hls_time', '-hls_time',
@@ -173,6 +184,7 @@ export function validateHlsTime(s) {
 
 export function validateHlsListSize(s) {
   if (s.hlsListSize === undefined) return []
+  if (isTemplateVar(s.hlsListSize)) return []
   const HINT = '0 = keep all segments (VOD). 3–5 = live rolling window. Recommended live: 5 (covers ~30 s at 6 s segments)'
   if (!Number.isInteger(s.hlsListSize) || s.hlsListSize < 0 || s.hlsListSize > INT32_MAX)
     return [err('l1_hls_list_size', 'l1_hls_list_size', '-hls_list_size',
@@ -185,6 +197,7 @@ export function validateHlsListSize(s) {
 
 export function validateMaxDelay(s) {
   if (s.maxDelay === undefined) return []
+  if (isTemplateVar(s.maxDelay)) return []
   const HINT = 'FFmpeg default: 700 000 µs (0.7 s). Live streaming: 200 000–500 000 µs. 0 = no buffering (may drop packets). Recommended live: 500 000'
   if (!Number.isInteger(s.maxDelay) || s.maxDelay < 0 || s.maxDelay > INT32_MAX)
     return [err('l1_max_delay', 'l1_max_delay', '-max_delay',
@@ -197,6 +210,7 @@ export function validateMaxDelay(s) {
 
 export function validateThreadQueueSize(s) {
   if (s.threadQueueSize === undefined) return []
+  if (isTemplateVar(s.threadQueueSize)) return []
   const HINT = 'FFmpeg default: 8 (too low for live, causes DTS errors). Typical live: 512–1024. High-latency/unstable sources: 4096. Recommended: 1024'
   if (!Number.isInteger(s.threadQueueSize) || s.threadQueueSize <= 0 || s.threadQueueSize > INT32_MAX)
     return [err('l1_thread_queue_size', 'l1_thread_queue_size', '-thread_queue_size',
@@ -209,6 +223,7 @@ export function validateThreadQueueSize(s) {
 
 export function validateMaxMuxingQueueSize(s) {
   if (s.maxMuxingQueueSize === undefined) return []
+  if (isTemplateVar(s.maxMuxingQueueSize)) return []
   const HINT = 'FFmpeg default: 128. Raise to 1024–4096 if you see "Too many packets buffered for output stream" errors. Recommended: 1024'
   if (!Number.isInteger(s.maxMuxingQueueSize) || s.maxMuxingQueueSize <= 0 || s.maxMuxingQueueSize > INT32_MAX)
     return [err('l1_max_muxing_queue', 'l1_max_muxing_queue', '-max_muxing_queue_size',
@@ -221,6 +236,7 @@ export function validateMaxMuxingQueueSize(s) {
 
 export function validateAudioBitrate(s) {
   if (!s.audioBitrate) return []
+  if (isTemplateVar(s.audioBitrate)) return []
   const HINT = 'AAC: 128k (stereo), 192k (high quality), 320k (archival). AC3: 192k (stereo), 384k (5.1). Recommended stereo broadcast: 192k'
   if (!BITRATE_RE.test(s.audioBitrate))
     return [err('l1_audio_bitrate', 'l1_audio_bitrate', '-b:a',
@@ -257,6 +273,7 @@ const H265_LEVEL_CODECS_L1 = ['libx265','hevc_nvenc']
 
 export function validateProfile(s) {
   if (!s.profile || !s.videoCodec) return []
+  if (isTemplateVar(s.profile) || isTemplateVar(s.videoCodec)) return []
   // Skip for copy/disabled — copy_video_preset rule handles that in L2
   if (s.videoCodec === 'copy' || s.videoCodec === 'disabled') return []
   const validProfiles = PROFILES[s.videoCodec]
@@ -273,6 +290,7 @@ export function validateProfile(s) {
 
 export function validatePreset(s) {
   if (!s.preset || !s.videoCodec) return []
+  if (isTemplateVar(s.preset) || isTemplateVar(s.videoCodec)) return []
   if (s.videoCodec === 'copy' || s.videoCodec === 'disabled') return []
   const family = CODEC_PRESET_FAMILY[s.videoCodec]
   if (family === null)
@@ -290,6 +308,7 @@ export function validatePreset(s) {
 
 export function validateLevel(s) {
   if (!s.level || !s.videoCodec) return []
+  if (isTemplateVar(s.level) || isTemplateVar(s.videoCodec)) return []
   if (s.videoCodec === 'copy' || s.videoCodec === 'disabled') return []
   if (H264_LEVEL_CODECS_L1.includes(s.videoCodec)) {
     if (!VALID_LEVELS_H264.includes(s.level))
@@ -321,6 +340,7 @@ export function validateLevel(s) {
 
 export function validateChannelLayout(s) {
   if (!s.channelLayout) return []
+  if (isTemplateVar(s.channelLayout)) return []
   if (s.audioCodec === 'copy' || s.audioCodec === 'disabled') return []
   if (VALID_CHANNEL_LAYOUTS.includes(s.channelLayout)) return []
   return [err('l1_channel_layout', 'l1_channel_layout', '-channel_layout',
@@ -330,6 +350,7 @@ export function validateChannelLayout(s) {
 
 export function validateAspect(s) {
   if (!s.aspect) return []
+  if (isTemplateVar(s.aspect)) return []
   if (ASPECT_RE.test(s.aspect)) return []
   return [err('l1_aspect', 'l1_aspect', '-aspect',
     `Aspect ratio must be in W:H format, e.g. 16:9 or 4:3 (got "${s.aspect}")`,
@@ -340,6 +361,7 @@ export function validateAspect(s) {
 
 export function validatePixFmt(s) {
   if (!s.pixFmt) return []
+  if (isTemplateVar(s.pixFmt)) return []
   const HINT = 'yuv420p = widest compatibility (web, TV, mobile). yuv422p = broadcast/editing. 10-bit = HDR content'
   if (DEPRECATED_PIX_FMTS.includes(s.pixFmt))
     return [warn('l1_pix_fmt', 'l1_pix_fmt', '-pix_fmt',
@@ -352,6 +374,7 @@ export function validatePixFmt(s) {
 
 export function validateBsfVideo(s) {
   if (!s.bsfVideo) return []
+  if (isTemplateVar(s.bsfVideo)) return []
   const HINT = 'h264_mp4toannexb: H.264 in MPEG-TS. hevc_mp4toannexb: HEVC in MPEG-TS. Apply only codec-relevant filters'
   if (!VALID_BSF_VIDEO.includes(s.bsfVideo))
     return [err('l1_bsf_video', 'l1_bsf_video', '-bsf:v',
@@ -361,6 +384,7 @@ export function validateBsfVideo(s) {
 
 export function validateFieldOrder(s) {
   if (!s.fieldOrder) return []
+  if (isTemplateVar(s.fieldOrder)) return []
   const HINT = 'tt = top-field-first (most common). bb = bottom-field-first (PAL DV). progressive = no interlacing'
   if (!VALID_FIELD_ORDERS.includes(s.fieldOrder))
     return [err('l1_field_order', 'l1_field_order', '-field_order',
@@ -372,6 +396,7 @@ export function validateFieldOrder(s) {
 
 export function validateCustomFrameSize(s) {
   if (s.frameSize !== 'custom' || !s.customFrameSize) return []
+  if (isTemplateVar(s.customFrameSize)) return []
   const HINT = 'Common: 1920x1080 (Full HD), 1280x720 (HD), 3840x2160 (4K UHD), 720x576 (SD PAL), 720x480 (SD NTSC)'
   // Specific case: two integers separated by any non-digit, but at least one
   // is non-positive (e.g. '1080:-1', '1920x0'). The auto-derive '-1'/'-2'
@@ -392,6 +417,7 @@ export function validateCustomFrameSize(s) {
 
 export function validateCustomFps(s) {
   if (s.fps !== 'custom' || !s.customFps) return []
+  if (isTemplateVar(s.customFps)) return []
   const HINT = 'Common: 23.976 (film), 25 (PAL/EU), 29.97 or 30000/1001 (NTSC), 30, 50, 59.94, 60. Fractional notation (e.g. 30000/1001) is supported'
   const n = parseFps(s.customFps)
   if (isNaN(n) || n <= 0)
@@ -444,6 +470,7 @@ export function validateScaleFilter(s) {
 
 export function validateGop(s) {
   if (s.gop === undefined) return []
+  if (isTemplateVar(s.gop)) return []
   const HINT = 'Formula: fps × keyframe_interval_seconds. E.g. 25 fps × 4 s = 100. Typical live: 50–250. Recommended: match segment duration'
   if (!Number.isInteger(s.gop) || s.gop <= 0 || s.gop > INT32_MAX)
     return [err('l1_gop', 'l1_gop', '-g', `GOP must be a positive integer (1–${INT32_MAX})`, HINT)]
@@ -473,13 +500,13 @@ export function validateBitrates(s) {
   const BR_HINT  = 'Typical: 500k (SD), 2M (720p), 4–8M (1080p), 15–25M (4K). Use k/M suffix'
   const MR_HINT  = 'Typically 10–20% above target bitrate. Must be paired with -bufsize. Example: target=4M → maxrate=5M'
   const BUF_HINT = '2× maxrate for broadcast VBR, 1× maxrate for streaming. Example: maxrate=5M → bufsize=10M'
-  if (s.targetBitrate && !BITRATE_RE.test(s.targetBitrate))
+  if (s.targetBitrate && !isTemplateVar(s.targetBitrate) && !BITRATE_RE.test(s.targetBitrate))
     out.push(err('l1_bitrate', 'l1_bitrate', '-b:v',
       "Bitrate must be a number with optional suffix, e.g. '4M' or '500k'", BR_HINT))
-  if (s.maxrate && !BITRATE_RE.test(s.maxrate))
+  if (s.maxrate && !isTemplateVar(s.maxrate) && !BITRATE_RE.test(s.maxrate))
     out.push(err('l1_maxrate', 'l1_maxrate', '-maxrate',
       'Max rate must be a number with optional suffix', MR_HINT))
-  if (s.bufsize && !BITRATE_RE.test(s.bufsize))
+  if (s.bufsize && !isTemplateVar(s.bufsize) && !BITRATE_RE.test(s.bufsize))
     out.push(err('l1_bufsize', 'l1_bufsize', '-bufsize',
       'Buffer size must be a number with optional suffix', BUF_HINT))
   return out
@@ -490,6 +517,7 @@ export function validatePids(s) {
   const HINT = 'Convention: PMT at 256, video at 257, audio at 258. Avoid 0–31 (reserved) and 8191 (null packet)'
   const checkPid = (val, id, flag) => {
     if (val === undefined) return
+    if (isTemplateVar(val)) return
     if (val >= 32 && val <= 8186) return
     out.push(err(id, id, flag, `PID must be between 32 and 8186 (got ${val})`, HINT))
   }
@@ -500,6 +528,7 @@ export function validatePids(s) {
 
 export function validatePcrPeriod(s) {
   if (s.pcrPeriod === undefined) return []
+  if (isTemplateVar(s.pcrPeriod)) return []
   const HINT = 'DVB spec max: 100 ms. FFmpeg default: 20 ms. Recommended: 40 ms for broadcast, 20 ms for IPTV'
   if (!Number.isInteger(s.pcrPeriod) || s.pcrPeriod <= 0 || s.pcrPeriod > 100)
     return [err('l1_pcr', 'l1_pcr', '-pcr_period',
@@ -509,6 +538,7 @@ export function validatePcrPeriod(s) {
 
 export function validateDialnorm(s) {
   if (s.dialnorm === undefined) return []
+  if (isTemplateVar(s.dialnorm)) return []
   const HINT = 'Dolby standard: −27 for film, −24 for TV. EBU R128 (−23 LUFS) maps to −23. Recommended broadcast: −27'
   if (!Number.isInteger(s.dialnorm) || s.dialnorm < -31 || s.dialnorm > -1)
     return [err('l1_dialnorm', 'l1_dialnorm', '-dialnorm',
@@ -527,6 +557,7 @@ export function validateLoudnorm(s) {
 
 export function validateTimeout(s) {
   if (s.timeout === undefined) return []
+  if (isTemplateVar(s.timeout)) return []
   const HINT = 'SRT/RTSP on stable network: 5 000 000 µs (5 s). Unstable/satellite links: 10 000 000 µs (10 s). Recommended: 5 000 000'
   if (!Number.isInteger(s.timeout) || s.timeout <= 0 || s.timeout > INT32_MAX)
     return [err('l1_timeout', 'l1_timeout', '-timeout',
@@ -540,6 +571,7 @@ export function validateTimeout(s) {
 
 export function validateAnalyzeDuration(s) {
   if (s.analyzeDuration === undefined) return []
+  if (isTemplateVar(s.analyzeDuration)) return []
   const HINT = 'Unit: microseconds. Common: 5 000 000 (5 s), 10 000 000 (10 s). ' +
     'Higher values delay stream start but improve codec detection on complex inputs. ' +
     'FFmpeg default: 5 000 000. For reliable live IPTV sources 5 000 000 is usually sufficient'
@@ -554,6 +586,7 @@ export function validateAnalyzeDuration(s) {
 
 export function validateProbeSize(s) {
   if (s.probeSize === undefined) return []
+  if (isTemplateVar(s.probeSize)) return []
   const HINT = 'Unit: bytes. Common: 5 000 000 (5 MB), 10 000 000 (10 MB). ' +
     'Higher values improve format/codec detection but use more memory. ' +
     'FFmpeg default: 5 000 000. Pair with -analyzeduration for hard-to-detect streams'
@@ -568,6 +601,7 @@ export function validateProbeSize(s) {
 
 export function validateGpuIndex(s) {
   if (s.gpuIndex === undefined) return []
+  if (isTemplateVar(s.gpuIndex)) return []
   const HINT = '-1 = FFmpeg auto-selects any available GPU. 0 = first GPU, 1 = second GPU, etc. ' +
     'Only affects NVENC/NVDEC. Recommended: -1 (auto) unless you specifically need a particular device'
   if (!Number.isInteger(s.gpuIndex) || s.gpuIndex < -1 || s.gpuIndex > 15)
@@ -578,6 +612,7 @@ export function validateGpuIndex(s) {
 
 export function validateListen(s) {
   if (s.listen === undefined) return []
+  if (isTemplateVar(s.listen)) return []
   const HINT = '0 = client mode (default, connect to URL). 1 = server mode (bind and wait for incoming connection). ' +
     'Use listen=1 on the output URL for TCP/MPEG-TS push receivers. ' +
     'The output URL must use the tcp:// scheme or a host:port address'
@@ -591,6 +626,7 @@ export function validateStreamLoop(s) {
   if (s.streamLoop === undefined) return []
   // Accept boolean true for backward compatibility (treated as infinite loop = -1)
   if (s.streamLoop === true) return []
+  if (isTemplateVar(s.streamLoop)) return []
   const HINT = '-1 = loop indefinitely, 0 = play once (no loop), N > 0 = repeat N additional times. ' +
     'Always pair with -re to avoid flooding the output. Recommended: -stream_loop -1 -re for broadcast playout'
   if (!Number.isInteger(s.streamLoop) || s.streamLoop < -1)
@@ -624,6 +660,7 @@ function info(id, group, flag, message, hint) {
  */
 export function validateNvdecDeint(s) {
   if (s.nvdecDeint === undefined) return []
+  if (isTemplateVar(s.nvdecDeint)) return []
   const HINT = '0 = weave (no deinterlace). 1 = bob (frame-rate deinterlace). 2 = adaptive. Only effective with NVDEC cuvid decoders (-hwaccel cuda)'
   if (!VALID_NVDEC_DEINT.includes(s.nvdecDeint))
     return [err('l1_nvdec_deint', 'l1_nvdec_deint', '-deint',
@@ -638,6 +675,7 @@ export function validateNvdecDeint(s) {
 function validateEnum(s, field, id, flag, validValues, label) {
   const val = s[field]
   if (val === undefined || val === null || val === '') return []
+  if (isTemplateVar(val)) return []
   if (validValues.includes(val)) return []
   return [err(id, id, flag,
     `${label} must be one of: ${validValues.join(', ')} (got "${val}")`)]
@@ -650,7 +688,7 @@ function validateEnum(s, field, id, flag, validValues, label) {
 function validateArrayEnum(s, field, id, flag, validValues, label) {
   const arr = s[field]
   if (!Array.isArray(arr) || arr.length === 0) return []
-  const invalid = arr.filter(v => !validValues.includes(v))
+  const invalid = arr.filter(v => !validValues.includes(v) && !isTemplateVar(v))
   if (invalid.length === 0) return []
   return [err(id, id, flag,
     `Unknown ${label} value(s): ${invalid.join(', ')}. Valid: ${validValues.join(', ')}`)]
