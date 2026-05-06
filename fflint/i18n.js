@@ -9,7 +9,7 @@ export function setLocale(catalog) {
 
 export function t(id, params = {}) {
   const entry = _catalog?.[id] || enCatalog?.[id]
-  if (!entry) return params
+  if (!entry) return { message: id }
   return {
     message: typeof entry.message === 'function' ? entry.message(params) : entry.message,
     hint: entry.hint === undefined ? params.hint :

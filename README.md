@@ -826,7 +826,7 @@ By default fflint returns all diagnostic messages and hints in **English**. The 
 
 ### How it works
 
-Every message in fflint is looked up by a stable key at the moment a diagnostic is produced. The `t(key, params)` function resolves the key against the active catalog and returns an object with a `message` property and, when available, a `hint` property. If a key is missing from the active catalog, it should fall back to the default English entry (or another predefined default catalog) so callers can continue to rely on `result.message` always being present.
+Every message in fflint is looked up by a stable key at the moment a diagnostic is produced. The `t(key, params)` function resolves the key against the active catalog and returns an object with a `message` property and, when available, a `hint` property. If a key is missing from the active catalog, `t()` falls back to the bundled English entry. If the key is absent from both the active catalog and the English catalog, `t()` returns `{ message: key }` so callers can always rely on `result.message` being a string.
 
 The catalog itself is a plain JavaScript object: keys are message IDs, values are translation entries that resolve to diagnostic text. Simple entries may be static strings or `(params) => string` functions for dynamic content; entries that include extra metadata should still be normalized by `t()` into the same `{ message, hint? }` shape.
 
