@@ -8,6 +8,10 @@ import {
 } from './codec-data.js'
 import { getScaleSize, hasHwScale } from './vf-parse.js'
 
+// Returns true when v is a valid template variable reference: ${identifier}
+// where identifier is Latin letters, digits, and underscores — no spaces.
+const isTemplateVar = v => typeof v === 'string' && /^\$\{[a-zA-Z0-9_]+\}$/.test(v)
+
 // Helper: true when the state requests any kind of looping.
 // Accepts both legacy boolean (true) and integer (-1 or N>0) models.
 const isLooping = s => s.streamLoop === true || (Number.isInteger(s.streamLoop) && s.streamLoop !== 0)
@@ -88,13 +92,13 @@ export const rules = [
   {
     id: 'nvenc_no_hwaccel', group: 'hwaccel_mismatch', layer: 2,
     severity: 'error', flag: '-hwaccel',
-    check: (s) => NVENC_CODECS.includes(s.videoCodec) && s.hwaccel !== undefined && s.hwaccel !== 'cuda',
+    check: (s) => NVENC_CODECS.includes(s.videoCodec) && s.hwaccel !== undefined && !isTemplateVar(s.hwaccel) && s.hwaccel !== 'cuda',
     message: 'NVENC codec requires -hwaccel cuda — without it the decode pipeline runs on CPU, negating the GPU advantage. Set HW Accel to "cuda"',
   },
   {
     id: 'vaapi_wrong_hwaccel', group: 'hwaccel_mismatch', layer: 2,
     severity: 'warning', flag: '-hwaccel',
-    check: (s) => VAAPI_CODECS.includes(s.videoCodec) && s.hwaccel !== undefined && s.hwaccel !== 'vaapi',
+    check: (s) => VAAPI_CODECS.includes(s.videoCodec) && s.hwaccel !== undefined && !isTemplateVar(s.hwaccel) && s.hwaccel !== 'vaapi',
     message: 'VAAPI codec requires -hwaccel vaapi',
   },
   {
@@ -112,7 +116,7 @@ export const rules = [
   {
     id: 'cpu_hwaccel_set', group: 'hwaccel_mismatch', layer: 2,
     severity: 'warning', flag: '-hwaccel',
-    check: (s) => CPU_CODECS.includes(s.videoCodec) && s.hwaccel && s.hwaccel !== 'none',
+    check: (s) => CPU_CODECS.includes(s.videoCodec) && s.hwaccel && !isTemplateVar(s.hwaccel) && s.hwaccel !== 'none',
     message: 'Hardware acceleration has no effect on CPU codecs',
   },
   {
@@ -270,7 +274,7 @@ export const rules = [
   {
     id: 'dialnorm_non_dolby', group: 'dialnorm', layer: 2,
     severity: 'warning', flag: '-dialnorm',
-    check: (s) => s.dialnorm !== undefined && !DOLBY_CODECS.includes(s.audioCodec),
+    check: (s) => s.dialnorm !== undefined && !isTemplateVar(s.dialnorm) && !DOLBY_CODECS.includes(s.audioCodec),
     message: '-dialnorm is embedded in AC3/EAC3 bitstreams only — no effect on other codecs',
   },
 
@@ -466,6 +470,7 @@ export const rules = [
     check: (s) => {
       if (!s.channels || s.channels === 'original') return false
       if (!s.channelLayout) return false
+      if (isTemplateVar(s.channels) || isTemplateVar(s.channelLayout)) return false
       const expected = CHANNEL_LAYOUT_CHANNELS[s.channelLayout]
       return expected !== undefined && expected !== parseInt(s.channels, 10)
     },
@@ -474,7 +479,7 @@ export const rules = [
   {
     id: 'ac3_mono', group: 'channel_consistency', layer: 2,
     severity: 'warning', flag: '-ac',
-    check: (s) => DOLBY_CODECS.includes(s.audioCodec) && s.channels === '1',
+    check: (s) => DOLBY_CODECS.includes(s.audioCodec) && !isTemplateVar(s.channels) && s.channels === '1',
     message: 'Mono AC3/EAC3 is technically valid but extremely uncommon — most decoders expect 2ch or 5.1. Verify receiver compatibility',
   },
 
@@ -511,7 +516,9 @@ export const rules = [
     severity: 'error', flag: '-hwaccel_output_format',
     check: (s) => {
       if (!s.hwaccelOutputFormat || s.hwaccelOutputFormat === 'none') return false
+      if (isTemplateVar(s.hwaccelOutputFormat)) return false
       if (!s.hwaccel || s.hwaccel === 'none') return false
+      if (isTemplateVar(s.hwaccel)) return false
       const expected = { cuda: 'cuda', vaapi: 'vaapi', qsv: 'qsv' }
       const exp = expected[s.hwaccel]
       return !!exp && s.hwaccelOutputFormat !== exp
@@ -549,7 +556,7 @@ export const rules = [
   {
     id: 'gpu_index_no_hwaccel', group: 'gpu_index', layer: 2,
     severity: 'warning', flag: '-gpu',
-    check: (s) => s.gpuIndex !== undefined && s.gpuIndex >= 0 && (!s.hwaccel || s.hwaccel === 'none'),
+    check: (s) => s.gpuIndex !== undefined && !isTemplateVar(s.gpuIndex) && s.gpuIndex >= 0 && (!s.hwaccel || s.hwaccel === 'none'),
     message: (s) => `-gpu ${s.gpuIndex} selects the NVENC encode device but -hwaccel is not set — the decoder will still use CPU. Add -hwaccel cuda to route the full pipeline through GPU ${s.gpuIndex}`,
   },
 
@@ -573,19 +580,19 @@ export const rules = [
   {
     id: 'yadif_cuda_no_hwaccel', group: 'cuda_filter_hwaccel', layer: 2,
     severity: 'error', flag: '-filter:v',
-    check: (s) => s.deinterlaceFilter === 'yadif_cuda' && s.hwaccel !== 'cuda',
+    check: (s) => s.deinterlaceFilter === 'yadif_cuda' && !isTemplateVar(s.hwaccel) && s.hwaccel !== 'cuda',
     message: 'yadif_cuda requires the decode pipeline on CUDA — set HW Accel to "cuda" and HW Accel Output to "cuda", otherwise FFmpeg cannot pass GPU frames to this filter',
   },
   {
     id: 'bwdif_cuda_no_hwaccel', group: 'cuda_filter_hwaccel', layer: 2,
     severity: 'error', flag: '-filter:v',
-    check: (s) => s.deinterlaceFilter === 'bwdif_cuda' && s.hwaccel !== 'cuda',
+    check: (s) => s.deinterlaceFilter === 'bwdif_cuda' && !isTemplateVar(s.hwaccel) && s.hwaccel !== 'cuda',
     message: 'bwdif_cuda requires the decode pipeline on CUDA — set HW Accel to "cuda" and HW Accel Output to "cuda", otherwise FFmpeg cannot pass GPU frames to this filter',
   },
   {
     id: 'scale_cuda_no_hwaccel', group: 'cuda_filter_hwaccel', layer: 2,
     severity: 'error', flag: '-filter:v',
-    check: (s) => s.scaleFilter === 'scale_cuda' && s.hwaccel !== 'cuda',
+    check: (s) => s.scaleFilter === 'scale_cuda' && !isTemplateVar(s.hwaccel) && s.hwaccel !== 'cuda',
     message: 'scale_cuda requires the decode pipeline on CUDA — set HW Accel to "cuda" and HW Accel Output to "cuda", otherwise the filter will receive CPU frames and FFmpeg will error',
   },
   {
@@ -593,7 +600,7 @@ export const rules = [
     severity: 'error', flag: '-filter:v',
     check: (s) => {
       const isCpuFilter = s.deinterlaceFilter === 'yadif' || s.deinterlaceFilter === 'bwdif';
-      return isCpuFilter && s.hwaccelOutputFormat && s.hwaccelOutputFormat !== 'none';
+      return isCpuFilter && s.hwaccelOutputFormat && !isTemplateVar(s.hwaccelOutputFormat) && s.hwaccelOutputFormat !== 'none';
     },
     message: (s) => `CPU deinterlace filter "${s.deinterlaceFilter}" cannot process GPU frames — HW Accel Output is set to "${s.hwaccelOutputFormat}", which keeps decoded frames on the GPU. Either switch Deinterlace to "${s.deinterlaceFilter}_cuda" (GPU filter) or set HW Accel Output to "— None —" to route frames through system RAM`,
   },
@@ -602,7 +609,7 @@ export const rules = [
     severity: 'warning', flag: '-hwaccel_output_format',
     check: (s) => {
       const hasCudaFilter = s.deinterlaceFilter === 'yadif_cuda' || s.deinterlaceFilter === 'bwdif_cuda' || s.scaleFilter === 'scale_cuda'
-      return hasCudaFilter && s.hwaccel === 'cuda' && s.hwaccelOutputFormat !== 'cuda'
+      return hasCudaFilter && s.hwaccel === 'cuda' && !isTemplateVar(s.hwaccelOutputFormat) && s.hwaccelOutputFormat !== 'cuda'
     },
     message: (s) => `Using CUDA filter "${s.deinterlaceFilter || s.scaleFilter}" with HW Accel "cuda" but HW Accel Output is not set to "cuda" — decoded frames will move to RAM before the filter. Set HW Accel Output to "cuda" to keep frames on GPU throughout the pipeline`,
   },
@@ -618,7 +625,7 @@ export const rules = [
   {
     id: 'vaapi_filter_no_hwaccel', group: 'vaapi_filter_hwaccel', layer: 2,
     severity: 'error', flag: '-filter:v',
-    check: (s) => s.scaleFilter === 'scale_vaapi' && s.hwaccel !== 'vaapi',
+    check: (s) => s.scaleFilter === 'scale_vaapi' && !isTemplateVar(s.hwaccel) && s.hwaccel !== 'vaapi',
     message: 'scale_vaapi requires -hwaccel vaapi — without it FFmpeg cannot pass GPU surfaces to the filter and will error',
   },
   {
@@ -722,7 +729,7 @@ export const rules = [
   {
     id: 'sc_threshold_cbr', group: 'cbr_integrity', layer: 3,
     severity: 'warning', flag: '-sc_threshold',
-    check: (s) => s.bitrateMode === 'cbr' && s.scThreshold !== undefined && s.scThreshold !== 0,
+    check: (s) => s.bitrateMode === 'cbr' && s.scThreshold !== undefined && !isTemplateVar(s.scThreshold) && s.scThreshold !== 0,
     message: 'Scene-change keyframes break CBR predictability — set -sc_threshold 0 for broadcast',
   },
   {
@@ -772,6 +779,7 @@ export const rules = [
     check: (s) => {
       if (!s.audioCodec || s.audioCodec === 'copy' || s.audioCodec === 'disabled') return false
       if (!s.sampleRate || s.sampleRate === 'original') return false
+      if (isTemplateVar(s.sampleRate)) return false
       return s.sampleRate !== '48000' && [...DOLBY_CODECS, ...MP2_CODECS, 'aac'].includes(s.audioCodec)
     },
     message: '48 kHz is the DVB broadcast standard — 44.1 kHz may cause issues on STBs',
@@ -847,7 +855,7 @@ export const rules = [
   {
     id: 'cbr_keyint_min_not_gop', group: 'cbr_integrity', layer: 3,
     severity: 'warning', flag: '-keyint_min',
-    check: (s) => s.bitrateMode === 'cbr' && s.gop !== undefined && s.keyintMin !== undefined && s.keyintMin !== s.gop,
+    check: (s) => s.bitrateMode === 'cbr' && s.gop !== undefined && s.keyintMin !== undefined && !isTemplateVar(s.gop) && !isTemplateVar(s.keyintMin) && s.keyintMin !== s.gop,
     message: 'For strict CBR broadcast set -keyint_min equal to GOP size to prevent scene-change keyframes breaking bitrate predictability',
   },
 
