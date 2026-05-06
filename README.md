@@ -847,7 +847,7 @@ import { setLocale } from './fflint/i18n.js'
 
 ```js
 import { setLocale } from '@cesbo/fflint/i18n'
-import ruCatalog from './fflint/locales/ru.js'
+import ruCatalog from '@cesbo/fflint/locales/ru'
 
 setLocale(ruCatalog)
 
@@ -859,7 +859,7 @@ setLocale(ruCatalog)
 
 ```js
 import { setLocale } from '@cesbo/fflint/i18n'
-import enCatalog from './fflint/locales/en.js'
+import enCatalog from '@cesbo/fflint/locales/en'
 
 setLocale(enCatalog)
 ```
