@@ -892,7 +892,7 @@ export default {
 
 ### Writing a custom locale
 
-Copy `fflint/locales/en.js` as a starting point. Translate the `message` and `hint` strings. Functions receive a `params` object whose keys are documented by the English catalog. You do not need to translate every key — untranslated keys fall back to `params` (raw values), so partial translations are safe.
+Copy `fflint/locales/en.js` as a starting point. Translate the `message` and `hint` strings. Functions receive a `params` object whose keys are documented by the English catalog. You do not need to translate every key — untranslated keys fall back to the English catalog, so partial translations are safe.
 
 ```js
 // my-locale.js
