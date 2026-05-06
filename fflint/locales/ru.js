@@ -459,7 +459,7 @@ export default {
   nvdec_deint_no_hwaccel:      { message: '-deint требует -hwaccel cuda (конвейер декодера NVDEC cuvid) — без него флаг игнорируется или вызывает ошибку' },
   nvdec_deint_no_output_fmt:   { message: '-deint с -hwaccel cuda, но без -hwaccel_output_format cuda — декодированные кадры будут загружены в ОЗУ после деинтерлейса NVDEC. Установите HW Accel Output в «cuda»' },
   nvdec_deint_zero_redundant:  { message: '-deint 0 (weave) — значение по умолчанию — этот флаг избыточен и может быть удалён' },
-  field_order_while_deinterlacing: { message: 'Деинтерлейс удаляет чересстрочность — неprогрессивный порядок полей противоречит этому' },
+  field_order_while_deinterlacing: { message: 'Деинтерлейс удаляет чересстрочность — непрогрессивный порядок полей противоречит этому' },
   yadif_field_fps_mismatch:    { message: 'Полевой деинтерлейс (mode=1) удваивает частоту кадров — выходной FPS должен быть 50 или 60, а не ≤30' },
 
   // DVB / MPEG-TS
