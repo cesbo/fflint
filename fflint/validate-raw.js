@@ -7,6 +7,7 @@
 //   // → [ { severity: 'error'|'warning'|'info', message: '...', flag?, group?, layer? }, ... ]
 
 import { validate as fflintValidate } from './fflint.js'
+import { t } from './i18n.js'
 //ToDo NO_VALUE_FLAGS is imported but not used in this file. Should we remove it or is it intended for future use?
 import { parse, KNOWN_FLAGS, VALUE_FLAGS, NO_VALUE_FLAGS } from './parse.js'
 
@@ -101,69 +102,69 @@ function structuralChecks(rawText) {
   }
 
   for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i]
+    const tok = tokens[i]
 
     // Normalize stream-indexed specifiers: -c:a:0 → -c:a, -b:v:1 → -b:v
-    const nt = t.replace(/^(-[a-z_]+:[vasd]):\d+$/i, '$1')
-    const isStreamIndexed = nt !== t
+    const nt = tok.replace(/^(-[a-z_]+:[vasd]):\d+$/i, '$1')
+    const isStreamIndexed = nt !== tok
 
-    if (t === '-i') hasInput = true
+    if (tok === '-i') hasInput = true
 
     // Detect tokens that look like flags missing their leading dash
-    if (!t.startsWith('-') && !t.startsWith('${') && BARE_FLAG_NAMES.has(t)) {
+    if (!tok.startsWith('-') && !tok.startsWith('${') && BARE_FLAG_NAMES.has(tok)) {
       // Only warn if this token is not a value for the preceding flag
       if (i === 0 || !tokens[i - 1].startsWith('-') || !VALUE_FLAGS.has(tokens[i - 1])) {
-        results.push({ severity: 'warning', message: `"${t}" looks like a flag missing its dash — did you mean "-${t}"?` })
+        results.push({ severity: 'warning', message: t('raw_missing_dash', { flag: tok }).message })
       }
     }
 
-    if (!t.startsWith('-') || t.startsWith('${')) continue
-    if (/^-\d+(\.\d+)?$/.test(t)) continue
-    if (!KNOWN_FLAGS.has(nt)) { unknownFlags.push(t); continue }
+    if (!tok.startsWith('-') || tok.startsWith('${')) continue
+    if (/^-\d+(\.\d+)?$/.test(tok)) continue
+    if (!KNOWN_FLAGS.has(nt)) { unknownFlags.push(tok); continue }
 
     // Phase 3: Track flag values for duplicate detection
     // Stream-indexed flags (-c:a:0, -c:a:1) are inherently repeatable
     if (!REPEATABLE_FLAGS.has(nt) && !isStreamIndexed) {
       const val = VALUE_FLAGS.has(nt) ? (tokens[i + 1] || '') : ''
-      if (seen[t]) {
-        if (flagValues[t] === val) {
-          results.push({ severity: 'info', message: `${t} appears more than once with the same value — redundant` })
+      if (seen[tok]) {
+        if (flagValues[tok] === val) {
+          results.push({ severity: 'info', message: t('raw_duplicate_same', { flag: tok }).message })
         } else {
-          results.push({ severity: 'warning', message: `${t} appears twice with different values — only the last value is used` })
+          results.push({ severity: 'warning', message: t('raw_duplicate_diff', { flag: tok }).message })
         }
       }
-      flagValues[t] = val
+      flagValues[tok] = val
     }
-    seen[t] = true
+    seen[tok] = true
 
     // Phase 1: Flag ordering validation
     if (!DUAL_USE_FLAGS.has(nt) && !GLOBAL_FLAGS.has(nt) && firstInputIdx >= 0) {
       if (POST_INPUT_FLAGS.has(nt) && i < firstInputIdx) {
-        results.push({ severity: 'warning', message: `${t} is an output/encoding flag but appears before -i — it should be placed after the input` })
+        results.push({ severity: 'warning', message: t('raw_flag_before_input', { flag: tok }).message })
       }
       if (PRE_INPUT_FLAGS.has(nt) && i > firstInputIdx) {
-        results.push({ severity: 'warning', message: `${t} is an input flag but appears after -i — it should be placed before the input` })
+        results.push({ severity: 'warning', message: t('raw_flag_after_input', { flag: tok }).message })
       }
     }
 
     // Phase 1.3: Detect options after the output target
     if (outputTargetIdx >= 0 && i > outputTargetIdx) {
-      results.push({ severity: 'error', message: `${t} appears after the output target — options after output are not applied by FFmpeg` })
+      results.push({ severity: 'error', message: t('raw_flag_after_output', { flag: tok }).message })
     }
 
     // Check for missing value: flag expects a value but next token is missing or is another known flag
     if (VALUE_FLAGS.has(nt)) {
       const next = tokens[i + 1]
       if (next === undefined) {
-        results.push({ severity: 'error', message: `${t} at end of command is missing its value` })
+        results.push({ severity: 'error', message: t('raw_missing_value_eof', { flag: tok }).message })
       } else if (next.startsWith('-') && !next.startsWith('${') && !/^-\d+(\.\d+)?$/.test(next) && KNOWN_FLAGS.has(next.replace(/^(-[a-z_]+:[vasd]):\d+$/i, '$1'))) {
-        results.push({ severity: 'error', message: `${t} is followed by ${next} — the value for ${t} appears to be missing` })
+        results.push({ severity: 'error', message: t('raw_missing_value_next', { flag: tok, next }).message })
       }
     }
   }
 
   if (!hasInput && tokens.length > 1)
-    results.push({ severity: 'error', message: 'No -i (input) flag found — FFmpeg requires at least one input' })
+    results.push({ severity: 'error', message: t('raw_no_input').message })
 
   // Phase 2: Missing output
   if (hasInput && !outputTarget && tokens.length > 1) {
@@ -171,7 +172,7 @@ function structuralChecks(rawText) {
     const lastToken = tokens[tokens.length - 1]
     const lastNonFlagIsTemplate = lastToken.startsWith('${')
     if (!lastNonFlagIsTemplate)
-      results.push({ severity: 'error', message: 'No output file/URL specified' })
+      results.push({ severity: 'error', message: t('raw_no_output').message })
   }
 
   // Phase 2.3: Format/extension mismatch
@@ -182,33 +183,33 @@ function structuralChecks(rawText) {
       const ext = extMatch[1].toLowerCase()
       const expectedExts = FORMAT_EXTENSIONS[fmtValue]
       if (expectedExts && !expectedExts.includes(ext)) {
-        results.push({ severity: 'warning', message: `-f ${fmtValue} but output file extension is "${ext}" — expected ${expectedExts.join(' or ')}` })
+        results.push({ severity: 'warning', message: t('raw_format_ext_mismatch', { fmt: fmtValue, ext, expected: expectedExts.join(' or ') }).message })
       }
     }
   }
 
-  if (seen['-vn'] && seen['-c:v']) results.push({ severity: 'error', message: '-vn and -c:v are both present.' })
-  if (seen['-an'] && seen['-c:a']) results.push({ severity: 'error', message: '-an and -c:a are both present.' })
-  if (seen['-crf'] && seen['-b:v']) results.push({ severity: 'error', message: '-crf and -b:v should not both be present.' })
+  if (seen['-vn'] && seen['-c:v']) results.push({ severity: 'error', message: t('raw_vn_cv_conflict').message })
+  if (seen['-an'] && seen['-c:a']) results.push({ severity: 'error', message: t('raw_an_ca_conflict').message })
+  if (seen['-crf'] && seen['-b:v']) results.push({ severity: 'error', message: t('raw_crf_bv_conflict').message })
 
   // Phase 4: Multi-input without -map
   let inputCount = 0
   for (const tok of tokens) { if (tok === '-i') inputCount++ }
   if (inputCount > 1 && !seen['-map'])
-    results.push({ severity: 'warning', message: 'Multiple inputs without -map — FFmpeg will auto-select streams, which may not be what you want' })
+    results.push({ severity: 'warning', message: t('raw_multi_input_no_map').message })
 
   // Phase 5: Pipe I/O advisory
   for (let j = 0; j < tokens.length; j++) {
     if (tokens[j] === '-i') {
       const inp = tokens[j + 1] || ''
       if (inp === '-' || inp === 'pipe:0')
-        results.push({ severity: 'info', message: 'Pipe input detected (-i - / pipe:0) — ensure the feeding process writes a supported container format' })
+        results.push({ severity: 'info', message: t('raw_pipe_input').message })
     }
   }
   if (outputTarget === '-' || outputTarget === 'pipe:1')
-    results.push({ severity: 'info', message: 'Pipe output detected (- / pipe:1) — ensure the receiving process can consume the output format' })
+    results.push({ severity: 'info', message: t('raw_pipe_output').message })
 
-  if (unknownFlags.length) results.push({ severity: 'warning', message: 'Unrecognized flag(s): ' + unknownFlags.join(', ') })
+  if (unknownFlags.length) results.push({ severity: 'warning', message: t('raw_unknown_flags', { flags: unknownFlags.join(', ') }).message })
 
   return results
 }
@@ -226,7 +227,7 @@ function structuralChecks(rawText) {
  */
 export function validateRaw(rawText, options = {}) {
   if (!rawText || !rawText.trim()) {
-    return [{ severity: 'error', message: 'Command is empty.' }]
+    return [{ severity: 'error', message: t('raw_empty').message }]
   }
 
   const structural = structuralChecks(rawText)
