@@ -107,10 +107,10 @@ fflint is a set of ES modules. No build step, no bundler, no dependencies.
 ```bash
 # In the fflint directory
 npm pack
-# → cesbo-fflint-1.2.0.tgz
+# → cesbo-fflint-1.3.1.tgz
 
 # In your project
-npm install ../fflint/cesbo-fflint-1.2.0.tgz
+npm install ../fflint/cesbo-fflint-1.3.1.tgz
 ```
 
 ```js
@@ -308,6 +308,16 @@ The parser automatically detects the bitrate mode from the flags present:
 
 Flags not recognized by the parser are preserved in `passthroughPreInput` (before `-i`) and `passthroughPostInput` (after `-i`) arrays. These are round-tripped through `serialize()`.
 
+### Round-trip metadata
+
+When a state object comes from `parse()`, it also carries internal `_flagOrder` metadata. `serialize()` uses this metadata to preserve the user's original post-input flag order during a round-trip.
+
+This means:
+
+- `parse(raw) -> serialize(state)` keeps the relative order of output/encoding flags when possible
+- FFmpeg-required pre-input flags such as `-gpu`, `-hwaccel`, or `-re` may still be moved before `-i`
+- state objects created directly by your UI do not need `_flagOrder`; those serialize in canonical order
+
 ### Template variables
 
 `${i}` and `${o}` are recognized as Senta input/output placeholders and handled transparently. They do not affect input type detection (default: `'udp'`).
@@ -354,8 +364,16 @@ function serialize(
   options?: {
     inputPlaceholder?: string,   // default: '${i}'
     outputPlaceholder?: string,  // default: '${o}'
+    withHints?: boolean,         // default: false
   }
-): string
+): string | {
+  command: string,
+  hints: Array<{
+    severity: 'warning' | 'info',
+    flag: string,
+    message: string,
+  }>
+}
 ```
 
 | Parameter | Type | Default | Description |
@@ -363,8 +381,9 @@ function serialize(
 | `state` | `object` | — | fflint state object |
 | `options.inputPlaceholder` | `string` | `'${i}'` | Input source placeholder or URL |
 | `options.outputPlaceholder` | `string` | `'${o}'` | Output destination placeholder or URL |
+| `options.withHints` | `boolean` | `false` | When `true`, returns `{ command, hints }` so your UI can explain moved or unvalidated flags |
 
-**Returns:** An FFmpeg command string with properly ordered flags.
+**Returns:** By default, an FFmpeg command string. With `withHints: true`, returns `{ command, hints }`.
 
 ### Custom placeholders
 
@@ -377,15 +396,54 @@ const cmd = serialize(state, {
 
 ### Flag ordering
 
-The serializer follows canonical FFmpeg option ordering:
+The serializer follows canonical FFmpeg option ordering, but if the state came from `parse()`, it preserves the user's original post-input flag order via `_flagOrder` metadata:
 
 ```
 ffmpeg -y -hide_banner [pre-input flags] -i <input> [-i <logo>] [maps] [video codec/encoding] [audio codec/encoding] -f <format> [muxer opts] <output>
 ```
 
+In practice this means:
+
+- post-input flags stay in the same order the user typed them when possible
+- pre-input flags that FFmpeg expects before `-i` are normalized into that section
+- unknown flags are preserved in passthrough arrays and re-emitted at their original side of `-i`
+
 ### CBR auto-generation
 
 In CBR mode, `serialize()` automatically generates `-maxrate` and `-bufsize` equal to `-b:v` (strict CBR pattern). If `bufsize` is explicitly set, it uses that value instead.
+
+### Serialization hints
+
+Use `withHints: true` when your UI needs to explain why the returned command differs slightly from the user's raw input.
+
+```js
+const state = parse('ffmpeg -i ${i} -c:v h264_nvenc -gpu 0 -custom_flag foo -f mpegts ${o}')
+const { command, hints } = serialize(state, { withHints: true })
+
+console.log(command)
+// ffmpeg -y -hide_banner -gpu 0 -i ${i} -c:v h264_nvenc -f mpegts -custom_flag foo ${o}
+
+console.log(hints)
+// [
+//   {
+//     severity: 'info',
+//     flag: '-gpu',
+//     message: '-gpu moved before -i (required by FFmpeg)'
+//   },
+//   {
+//     severity: 'warning',
+//     flag: '-custom_flag',
+//     message: '-custom_flag is not recognized by fflint and was not validated'
+//   }
+// ]
+```
+
+Hint semantics:
+
+- `info`: fflint moved a recognized flag into the correct FFmpeg section
+- `warning`: fflint preserved an unknown flag, but did not validate it
+
+This is useful for reactive raw-command editors where the user should immediately see both the normalized command and an explanation of what changed.
 
 ---
 
@@ -600,7 +658,9 @@ Every field is optional. Only set the fields that are relevant to the current pr
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `passthroughFlags` | `string[]` | Unknown flags preserved from parsed raw text. Not validated by fflint, but your UI may emit a warning for each. |
+| `passthroughPreInput` | `string[]` | Unknown flags preserved from raw text before the first `-i`. They are re-emitted before input and are not validated by fflint. |
+| `passthroughPostInput` | `string[]` | Unknown flags preserved from raw text after the first `-i`. They are re-emitted on the output side and are not validated by fflint. |
+| `_flagOrder` | `string[]` | Internal metadata added by `parse()` and consumed by `serialize()` to preserve post-input flag order during round-trips. UI-created state objects can omit it. |
 
 ---
 
