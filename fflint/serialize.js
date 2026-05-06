@@ -6,6 +6,8 @@
 //   const cmd = serialize({ videoCodec: 'h264_nvenc', preset: 'p4', bitrateMode: 'cbr', targetBitrate: '4M', ... })
 //   // → 'ffmpeg -y -hide_banner -hwaccel cuda ... -f mpegts ${o}'
 
+import { t } from './i18n.js'
+
 /**
  * Serialize a fflint state object into an FFmpeg command string.
  *
@@ -91,7 +93,7 @@ export function serialize(state, options = {}) {
             hints.push({
               severity: 'info',
               flag: cliFlag,
-              message: `${cliFlag} moved before -i (required by FFmpeg)`,
+              message: t('serialize_flag_moved', { flag: cliFlag }).message,
             })
           }
         }
@@ -110,7 +112,7 @@ export function serialize(state, options = {}) {
       hints.push({
         severity: 'warning',
         flag: f,
-        message: `${f} is not recognized by fflint and was not validated`,
+        message: t('serialize_unknown_flag', { flag: f }).message,
       })
       // Skip the value token if present
       if (j + 1 < ptFlags.length && !ptFlags[j + 1].startsWith('-')) j++

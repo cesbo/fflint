@@ -21,10 +21,11 @@ fflint is designed to be embedded into any UI that builds or edits FFmpeg comman
 9. [Result Object Schema](#9-result-object-schema)  
 10. [Validation Layers Explained](#10-validation-layers-explained)  
 11. [Using `codec-data.js` for UI Dropdowns](#11-using-codec-datajs-for-ui-dropdowns)  
-12. [Custom Rules](#12-custom-rules)  
-13. [Integration Patterns](#13-integration-patterns)  
-14. [File Reference](#14-file-reference)  
-15. [Examples](#15-examples)
+12. [Internationalization (i18n)](#12-internationalization-i18n)  
+13. [Custom Rules](#13-custom-rules)  
+14. [Integration Patterns](#14-integration-patterns)  
+15. [File Reference](#15-file-reference)  
+16. [Examples](#16-examples)
 
 ---
 
@@ -75,7 +76,11 @@ fflint/
 ├── validate-raw.js  — Raw command string validator: validateRaw()
 ├── layer1.js        — Layer 1 validators (field-level)
 ├── rules.js         — Layer 2 + 3 rule definitions
-└── codec-data.js    — Enums, codec families, utility functions
+├── codec-data.js    — Enums, codec families, utility functions
+├── i18n.js          — Locale switcher: setLocale() / t()
+└── locales/
+    ├── en.js        — English message catalog (default)
+    └── ru.js        — Russian message catalog
 tests/
 ├── fflint_test.mjs          — Main test suite (state-based validate)
 ├── test_fixes.mjs           — Regression tests for validateRaw fixes
@@ -815,7 +820,122 @@ function getCrfRange(codec) {
 
 ---
 
-## 12. Custom Rules
+## 12. Internationalization (i18n)
+
+By default fflint returns all diagnostic messages and hints in **English**. The i18n module lets a consuming app switch the entire message catalog to any language at runtime without modifying fflint source files.
+
+### How it works
+
+Every message in fflint is looked up by a stable key at the moment a diagnostic is produced. The `t(key, params)` function resolves the key against the active catalog and returns an object with a `message` property and, when available, a `hint` property. If a key is missing from the active catalog, `t()` falls back to the bundled English entry. If the key is absent from both the active catalog and the English catalog, `t()` returns `{ message: key }` so callers can always rely on `result.message` being a string.
+
+The catalog itself is a plain JavaScript object: keys are message IDs, values are translation entries that resolve to diagnostic text. Simple entries may be static strings or `(params) => string` functions for dynamic content; entries that include extra metadata should still be normalized by `t()` into the same `{ message, hint? }` shape.
+
+### Import
+
+```js
+// The i18n module is a named package export
+import { setLocale } from '@cesbo/fflint/i18n'
+```
+
+Or directly from source:
+
+```js
+import { setLocale } from './fflint/i18n.js'
+```
+
+### Switching to Russian
+
+```js
+import { setLocale } from '@cesbo/fflint/i18n'
+import ruCatalog from '@cesbo/fflint/locales/ru'
+
+setLocale(ruCatalog)
+
+// From now on, all validate() / validateRaw() / serialize() calls
+// return messages and hints in Russian.
+```
+
+### Reverting to English
+
+```js
+import { setLocale } from '@cesbo/fflint/i18n'
+import enCatalog from '@cesbo/fflint/locales/en'
+
+setLocale(enCatalog)
+```
+
+### Catalog structure
+
+A catalog is a plain object exported as the default export:
+
+```js
+// fflint/locales/en.js (excerpt)
+export default {
+  // Static message
+  l1_gop_invalid: {
+    message: ({ max }) => `GOP must be a positive integer (1–${max})`,
+    hint: 'Formula: fps × keyframe_interval_seconds. E.g. 25 fps × 4 s = 100.',
+  },
+
+  // Rule message (looked up by rule id)
+  nvenc_no_hwaccel: {
+    message: 'NVENC codec requires -hwaccel cuda for GPU-accelerated decoding pipeline',
+    hint: 'Add hwaccel: "cuda" to the state, or set -hwaccel cuda before -i in the command.',
+  },
+
+  // Dynamic function entry
+  raw_missing_dash: {
+    message: ({ flag }) => `"${flag}" looks like a flag missing its dash — did you mean "-${flag}"?`,
+  },
+}
+```
+
+### Writing a custom locale
+
+Copy `fflint/locales/en.js` as a starting point. Translate the `message` and `hint` strings. Functions receive a `params` object whose keys are documented by the English catalog. You do not need to translate every key — untranslated keys fall back to the English catalog, so partial translations are safe.
+
+```js
+// my-locale.js
+export default {
+  l1_gop_invalid: {
+    message: ({ max }) => `Le GOP doit être un entier positif (1–${max})`,
+    hint: 'Formule : fps × secondes_par_keyframe. Ex. 25 fps × 4 s = 100.',
+  },
+  // ... other entries
+}
+```
+
+```js
+import { setLocale } from '@cesbo/fflint/i18n'
+import frCatalog from './my-locale.js'
+
+setLocale(frCatalog)
+```
+
+### Bundled locales
+
+| File | Language |
+|------|----------|
+| `fflint/locales/en.js` | English (default) |
+| `fflint/locales/ru.js` | Russian |
+
+### API
+
+```ts
+// fflint/i18n.js
+
+/** Replace the active message catalog. Call once at app startup. */
+function setLocale(catalog: object): void
+
+/** Resolve a catalog key with optional params. Used internally by fflint. */
+function t(id: string, params?: object): { message: string, hint?: string }
+```
+
+`setLocale` is global — it affects all subsequent calls on the same module instance. In a server-side multi-tenant environment, set the locale per-request using a separate fflint import per worker, or translate the returned strings after the fact using your own catalog lookup.
+
+---
+
+## 13. Custom Rules
 
 Extend fflint with your own rules without modifying its source files. Custom rules follow the same shape as built-in rules:
 
@@ -865,7 +985,7 @@ const results = validate(state, { customRules: myRules })
 
 ---
 
-## 13. Integration Patterns
+## 14. Integration Patterns
 
 ### Pattern A: Real-time form validation
 
@@ -953,7 +1073,7 @@ const results = validate(state, { broadcastRules: false })
 
 ---
 
-## 14. File Reference
+## 15. File Reference
 
 ### `fflint.js`
 
@@ -1012,9 +1132,24 @@ const results = validate(state, { broadcastRules: false })
 | `parseFrameSize(str)` | Parses `'1920x1080'` → `{ w: 1920, h: 1080 }`. Returns `null` on invalid input. |
 | `parseFps(str)` | Parses `'29.97'` or `'30000/1001'` → `29.97`. Returns `NaN` on invalid input. |
 
+### `i18n.js`
+
+| Export | Description |
+|--------|-------------|
+| `setLocale(catalog)` | Replaces the active message catalog. Call once at app startup before any validation. |
+| `t(id, params?)` | Internal lookup function used by all fflint modules. Returns `{ message, hint? }`. |
+
+### `locales/en.js`
+
+Default English message catalog. Exported as default. Loaded automatically by `i18n.js`.
+
+### `locales/ru.js`
+
+Russian message catalog. Pass to `setLocale()` to switch the UI language to Russian.
+
 ---
 
-## 15. Examples
+## 16. Examples
 
 Runnable example scripts are available in the `/examples/` directory:
 - `example_parse.mjs` — Parse a command string and inspect the resulting state

@@ -7,7 +7,10 @@
     ".": "./fflint/fflint.js",
     "./parse": "./fflint/parse.js",
     "./serialize": "./fflint/serialize.js",
-    "./validate-raw": "./fflint/validate-raw.js"
+    "./validate-raw": "./fflint/validate-raw.js",
+    "./i18n": "./fflint/i18n.js",
+    "./locales/en": "./fflint/locales/en.js",
+    "./locales/ru": "./fflint/locales/ru.js"
   },
   "main": "./fflint/fflint.js",
   "files": [

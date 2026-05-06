@@ -1,6 +1,7 @@
 // fflint.js
 import { rules }          from './rules.js'
 import { validateLayer1 } from './layer1.js'
+import { t }              from './i18n.js'
 
 /** Library version number */
 export const VERSION = '1.2.0'
@@ -29,14 +30,13 @@ export function validate(state, options = {}) {
   const l1   = validateLayer1(state)
   const l2l3 = activeRules
     .filter(r => r.check(state))
-    .map(({ id, group, severity, flag, layer, message: rawMessage }) => ({
-      id,
-      group,
-      severity,
-      flag,
-      layer,
-      message: typeof rawMessage === 'function' ? rawMessage(state) : rawMessage,
-    }))
+    .map(({ id, group, severity, flag, layer, message: rawMessage }) => {
+      const catalog = t(id, { s: state })
+      const message = catalog.message ?? (typeof rawMessage === 'function' ? rawMessage(state) : rawMessage)
+      const result = { id, group, severity, flag, layer, message }
+      if (catalog.hint) result.hint = catalog.hint
+      return result
+    })
   return deduplicate([...l1, ...l2l3])
 }
 

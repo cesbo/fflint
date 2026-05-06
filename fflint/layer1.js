@@ -15,6 +15,7 @@ import {
   VALID_NVDEC_DEINT,
   NVENC_CODECS, VAAPI_CODECS,
 } from './codec-data.js'
+import { t } from './i18n.js'
 
 const BITRATE_RE   = /^\d+(\.\d+)?[kKmMgG]?$/i
 // FFmpeg's av_parse_video_size accepts both 'x' and '-' as WxH separators
@@ -100,164 +101,179 @@ export function validateLayer1(s) {
 export function validateKeyintMin(s) {
   if (s.keyintMin === undefined) return []
   if (isTemplateVar(s.keyintMin)) return []
-  const HINT = 'Typically GOP/2. For 25 fps + 2 s GOP: keyintMin=25. Recommended: set equal to fps to guarantee at least 1 keyframe/sec'
-  if (!Number.isInteger(s.keyintMin) || s.keyintMin <= 0 || s.keyintMin > INT32_MAX)
-    return [err('l1_keyint_min', 'l1_keyint_min', '-keyint_min',
-      `Minimum keyframe interval must be a positive integer (1–${INT32_MAX})`, HINT)]
-  if (s.keyintMin > 600)
-    return [warn('l1_keyint_min', 'l1_keyint_min', '-keyint_min',
-      `keyint_min ${s.keyintMin} is unusually high — most streams need a keyframe every few seconds`, HINT)]
+  if (!Number.isInteger(s.keyintMin) || s.keyintMin <= 0 || s.keyintMin > INT32_MAX) {
+    const { message, hint } = t('l1_keyint_min_invalid', { max: INT32_MAX })
+    return [err('l1_keyint_min', 'l1_keyint_min', '-keyint_min', message, hint)]
+  }
+  if (s.keyintMin > 600) {
+    const { message, hint } = t('l1_keyint_min_high', { value: s.keyintMin })
+    return [warn('l1_keyint_min', 'l1_keyint_min', '-keyint_min', message, hint)]
+  }
   return []
 }
 
 export function validateScThreshold(s) {
   if (s.scThreshold === undefined) return []
   if (isTemplateVar(s.scThreshold)) return []
-  const HINT = '0 = disable scene cut detection (strongly recommended for live/IPTV to keep fixed-GOP). FFmpeg default: 40'
-  if (typeof s.scThreshold === 'string' && s.scThreshold.startsWith('-'))
-    return [err('l1_sc_threshold', 'l1_sc_threshold', '-sc_threshold',
-      `sc_threshold value is "${s.scThreshold}" which looks like another flag — the value is missing. Provide a number (e.g. 0)`, HINT)]
-  if (!Number.isInteger(s.scThreshold) || s.scThreshold < 0)
-    return [err('l1_sc_threshold', 'l1_sc_threshold', '-sc_threshold',
-      'Scene change threshold must be a non-negative integer (0 = disable)', HINT)]
-  if (s.scThreshold > 500)
-    return [warn('l1_sc_threshold', 'l1_sc_threshold', '-sc_threshold',
-      `Scene change threshold ${s.scThreshold} is very high — effectively disables scene change detection. Use 0 explicitly to disable`, HINT)]
-  if (s.scThreshold > 100)
-    return [warn('l1_sc_threshold', 'l1_sc_threshold', '-sc_threshold',
-      `Scene change threshold ${s.scThreshold} is outside the practical range (0–100, default 40) — values above 100 produce minimal I-frames and may impair error recovery`, HINT)]
+  if (typeof s.scThreshold === 'string' && s.scThreshold.startsWith('-')) {
+    const { message, hint } = t('l1_sc_threshold_looks_like_flag', { value: s.scThreshold })
+    return [err('l1_sc_threshold', 'l1_sc_threshold', '-sc_threshold', message, hint)]
+  }
+  if (!Number.isInteger(s.scThreshold) || s.scThreshold < 0) {
+    const { message, hint } = t('l1_sc_threshold_invalid')
+    return [err('l1_sc_threshold', 'l1_sc_threshold', '-sc_threshold', message, hint)]
+  }
+  if (s.scThreshold > 500) {
+    const { message, hint } = t('l1_sc_threshold_very_high', { value: s.scThreshold })
+    return [warn('l1_sc_threshold', 'l1_sc_threshold', '-sc_threshold', message, hint)]
+  }
+  if (s.scThreshold > 100) {
+    const { message, hint } = t('l1_sc_threshold_high', { value: s.scThreshold })
+    return [warn('l1_sc_threshold', 'l1_sc_threshold', '-sc_threshold', message, hint)]
+  }
   return []
 }
 
 export function validateBframes(s) {
   if (s.bframes === undefined) return []
   if (isTemplateVar(s.bframes)) return []
-  const HINT = '0 for live/low-latency (no delay). 2–3 for VOD H.264 quality. HEVC supports up to 8. Recommended: 0 for live, 2 for VOD'
-  if (typeof s.bframes === 'string' && s.bframes.startsWith('-'))
-    return [err('l1_bframes', 'l1_bframes', '-bf',
-      `B-frames value is "${s.bframes}" which looks like another flag — the value is missing. Provide a number (e.g. 2)`, HINT)]
-  if (!Number.isInteger(s.bframes) || s.bframes < 0 || s.bframes > 16)
-    return [err('l1_bframes', 'l1_bframes', '-bf', 'B-frames must be an integer between 0 and 16', HINT)]
-  if (s.bframes > 3)
-    return [warn('l1_bframes', 'l1_bframes', '-bf',
-        `B-frame count ${s.bframes} exceeds the common range (0–3) — higher values increase encoding delay and memory with diminishing compression gains. Use 0 for live/low-latency (no delay), 2–3 for VOD H.264 quality. HEVC supports up to 8.`, HINT)]
+  if (typeof s.bframes === 'string' && s.bframes.startsWith('-')) {
+    const { message, hint } = t('l1_bframes_looks_like_flag', { value: s.bframes })
+    return [err('l1_bframes', 'l1_bframes', '-bf', message, hint)]
+  }
+  if (!Number.isInteger(s.bframes) || s.bframes < 0 || s.bframes > 16) {
+    const { message, hint } = t('l1_bframes_invalid')
+    return [err('l1_bframes', 'l1_bframes', '-bf', message, hint)]
+  }
+  if (s.bframes > 3) {
+    const { message, hint } = t('l1_bframes_high', { value: s.bframes })
+    return [warn('l1_bframes', 'l1_bframes', '-bf', message, hint)]
+  }
   return []
 }
 
 export function validateRefs(s) {
   if (s.refs === undefined) return []
   if (isTemplateVar(s.refs)) return []
-  const HINT = '1 = fastest decode/lowest latency. 3–5 = typical quality/speed balance. Higher values improve compression but increase decoder memory. Recommended: 3'
-  if (typeof s.refs === 'string' && s.refs.startsWith('-'))
-    return [err('l1_refs', 'l1_refs', '-refs',
-      `Reference frames value is "${s.refs}" which looks like another flag — the value is missing. Provide a number (e.g. 3)`, HINT)]
-  if (!Number.isInteger(s.refs) || s.refs < 1 || s.refs > 16)
-    return [err('l1_refs', 'l1_refs', '-refs', 'Reference frames must be an integer between 1 and 16', HINT)]
-  if (s.refs > 4)
-    return [warn('l1_refs', 'l1_refs', '-refs',
-      `Reference frames ${s.refs} exceeds the typical range (1–4) — adds little quality benefit but increases memory and CPU usage`, HINT)]
+  if (typeof s.refs === 'string' && s.refs.startsWith('-')) {
+    const { message, hint } = t('l1_refs_looks_like_flag', { value: s.refs })
+    return [err('l1_refs', 'l1_refs', '-refs', message, hint)]
+  }
+  if (!Number.isInteger(s.refs) || s.refs < 1 || s.refs > 16) {
+    const { message, hint } = t('l1_refs_invalid')
+    return [err('l1_refs', 'l1_refs', '-refs', message, hint)]
+  }
+  if (s.refs > 4) {
+    const { message, hint } = t('l1_refs_high', { value: s.refs })
+    return [warn('l1_refs', 'l1_refs', '-refs', message, hint)]
+  }
   return []
 }
 
 export function validateMpegtsServiceId(s) {
   if (s.mpegtsServiceId === undefined) return []
   if (isTemplateVar(s.mpegtsServiceId)) return []
-  const HINT = 'Must be unique per multiplex. Typical: 1. Range 1–65535 (16-bit). Matches the SID in SDT/PAT tables'
-  if (!Number.isInteger(s.mpegtsServiceId) || s.mpegtsServiceId < 1 || s.mpegtsServiceId > 65535)
-    return [err('l1_service_id', 'l1_service_id', '-mpegts_service_id',
-      'MPEG-TS Service ID must be an integer between 1 and 65535', HINT)]
+  if (!Number.isInteger(s.mpegtsServiceId) || s.mpegtsServiceId < 1 || s.mpegtsServiceId > 65535) {
+    const { message, hint } = t('l1_service_id_invalid')
+    return [err('l1_service_id', 'l1_service_id', '-mpegts_service_id', message, hint)]
+  }
   return []
 }
 
 export function validateHlsTime(s) {
   if (s.hlsTime === undefined) return []
   if (isTemplateVar(s.hlsTime)) return []
-  const HINT = '2–4 s for low-latency HLS (LL-HLS). 6 s is the common default. 10 s for stable VOD. Recommended: 6'
-  if (!Number.isInteger(s.hlsTime) || s.hlsTime <= 0 || s.hlsTime > 3600)
-    return [err('l1_hls_time', 'l1_hls_time', '-hls_time',
-      'HLS segment duration must be an integer between 1 and 3600 seconds', HINT)]
-  if (s.hlsTime > 30)
-    return [warn('l1_hls_time', 'l1_hls_time', '-hls_time',
-      `HLS segment duration ${s.hlsTime}s is very long — increases seek latency and startup delay`, HINT)]
+  if (!Number.isInteger(s.hlsTime) || s.hlsTime <= 0 || s.hlsTime > 3600) {
+    const { message, hint } = t('l1_hls_time_invalid')
+    return [err('l1_hls_time', 'l1_hls_time', '-hls_time', message, hint)]
+  }
+  if (s.hlsTime > 30) {
+    const { message, hint } = t('l1_hls_time_high', { value: s.hlsTime })
+    return [warn('l1_hls_time', 'l1_hls_time', '-hls_time', message, hint)]
+  }
   return []
 }
 
 export function validateHlsListSize(s) {
   if (s.hlsListSize === undefined) return []
   if (isTemplateVar(s.hlsListSize)) return []
-  const HINT = '0 = keep all segments (VOD). 3–5 = live rolling window. Recommended live: 5 (covers ~30 s at 6 s segments)'
-  if (!Number.isInteger(s.hlsListSize) || s.hlsListSize < 0 || s.hlsListSize > INT32_MAX)
-    return [err('l1_hls_list_size', 'l1_hls_list_size', '-hls_list_size',
-      `HLS playlist size must be an integer between 0 and ${INT32_MAX} (0 = unlimited)`, HINT)]
-  if (s.hlsListSize > 100)
-    return [warn('l1_hls_list_size', 'l1_hls_list_size', '-hls_list_size',
-      `HLS playlist with ${s.hlsListSize} segments is unusually large — consider 0 for VOD or 3–10 for live`, HINT)]
+  if (!Number.isInteger(s.hlsListSize) || s.hlsListSize < 0 || s.hlsListSize > INT32_MAX) {
+    const { message, hint } = t('l1_hls_list_size_invalid', { max: INT32_MAX })
+    return [err('l1_hls_list_size', 'l1_hls_list_size', '-hls_list_size', message, hint)]
+  }
+  if (s.hlsListSize > 100) {
+    const { message, hint } = t('l1_hls_list_size_high', { value: s.hlsListSize })
+    return [warn('l1_hls_list_size', 'l1_hls_list_size', '-hls_list_size', message, hint)]
+  }
   return []
 }
 
 export function validateMaxDelay(s) {
   if (s.maxDelay === undefined) return []
   if (isTemplateVar(s.maxDelay)) return []
-  const HINT = 'FFmpeg default: 700 000 µs (0.7 s). Live streaming: 200 000–500 000 µs. 0 = no buffering (may drop packets). Recommended live: 500 000'
-  if (!Number.isInteger(s.maxDelay) || s.maxDelay < 0 || s.maxDelay > INT32_MAX)
-    return [err('l1_max_delay', 'l1_max_delay', '-max_delay',
-      `Max input delay must be an integer between 0 and ${INT32_MAX} microseconds`, HINT)]
-  if (s.maxDelay > 10_000_000)
-    return [warn('l1_max_delay', 'l1_max_delay', '-max_delay',
-      `Max delay ${(s.maxDelay / 1_000_000).toFixed(1)}s is very high — may cause excessive buffering`, HINT)]
+  if (!Number.isInteger(s.maxDelay) || s.maxDelay < 0 || s.maxDelay > INT32_MAX) {
+    const { message, hint } = t('l1_max_delay_invalid', { max: INT32_MAX })
+    return [err('l1_max_delay', 'l1_max_delay', '-max_delay', message, hint)]
+  }
+  if (s.maxDelay > 10_000_000) {
+    const { message, hint } = t('l1_max_delay_high', { seconds: (s.maxDelay / 1_000_000).toFixed(1) })
+    return [warn('l1_max_delay', 'l1_max_delay', '-max_delay', message, hint)]
+  }
   return []
 }
 
 export function validateThreadQueueSize(s) {
   if (s.threadQueueSize === undefined) return []
   if (isTemplateVar(s.threadQueueSize)) return []
-  const HINT = 'FFmpeg default: 8 (too low for live, causes DTS errors). Typical live: 512–1024. High-latency/unstable sources: 4096. Recommended: 1024'
-  if (!Number.isInteger(s.threadQueueSize) || s.threadQueueSize <= 0 || s.threadQueueSize > INT32_MAX)
-    return [err('l1_thread_queue_size', 'l1_thread_queue_size', '-thread_queue_size',
-      `Thread queue size must be a positive integer (1–${INT32_MAX})`, HINT)]
-  if (s.threadQueueSize > 8192)
-    return [warn('l1_thread_queue_size', 'l1_thread_queue_size', '-thread_queue_size',
-      `Thread queue size ${s.threadQueueSize} is unreasonably high — may exhaust memory`, HINT)]
+  if (!Number.isInteger(s.threadQueueSize) || s.threadQueueSize <= 0 || s.threadQueueSize > INT32_MAX) {
+    const { message, hint } = t('l1_thread_queue_size_invalid', { max: INT32_MAX })
+    return [err('l1_thread_queue_size', 'l1_thread_queue_size', '-thread_queue_size', message, hint)]
+  }
+  if (s.threadQueueSize > 8192) {
+    const { message, hint } = t('l1_thread_queue_size_high', { value: s.threadQueueSize })
+    return [warn('l1_thread_queue_size', 'l1_thread_queue_size', '-thread_queue_size', message, hint)]
+  }
   return []
 }
 
 export function validateMaxMuxingQueueSize(s) {
   if (s.maxMuxingQueueSize === undefined) return []
   if (isTemplateVar(s.maxMuxingQueueSize)) return []
-  const HINT = 'FFmpeg default: 128. Raise to 1024–4096 if you see "Too many packets buffered for output stream" errors. Recommended: 1024'
-  if (!Number.isInteger(s.maxMuxingQueueSize) || s.maxMuxingQueueSize <= 0 || s.maxMuxingQueueSize > INT32_MAX)
-    return [err('l1_max_muxing_queue', 'l1_max_muxing_queue', '-max_muxing_queue_size',
-      `Max muxing queue size must be a positive integer (1–${INT32_MAX})`, HINT)]
-  if (s.maxMuxingQueueSize > 16384)
-    return [warn('l1_max_muxing_queue', 'l1_max_muxing_queue', '-max_muxing_queue_size',
-      `Max muxing queue size ${s.maxMuxingQueueSize} is very high — may waste memory. 1024–4096 covers most cases`, HINT)]
+  if (!Number.isInteger(s.maxMuxingQueueSize) || s.maxMuxingQueueSize <= 0 || s.maxMuxingQueueSize > INT32_MAX) {
+    const { message, hint } = t('l1_max_muxing_queue_invalid', { max: INT32_MAX })
+    return [err('l1_max_muxing_queue', 'l1_max_muxing_queue', '-max_muxing_queue_size', message, hint)]
+  }
+  if (s.maxMuxingQueueSize > 16384) {
+    const { message, hint } = t('l1_max_muxing_queue_high', { value: s.maxMuxingQueueSize })
+    return [warn('l1_max_muxing_queue', 'l1_max_muxing_queue', '-max_muxing_queue_size', message, hint)]
+  }
   return []
 }
 
 export function validateAudioBitrate(s) {
   if (!s.audioBitrate) return []
   if (isTemplateVar(s.audioBitrate)) return []
-  const HINT = 'AAC: 128k (stereo), 192k (high quality), 320k (archival). AC3: 192k (stereo), 384k (5.1). Recommended stereo broadcast: 192k'
-  if (!BITRATE_RE.test(s.audioBitrate))
-    return [err('l1_audio_bitrate', 'l1_audio_bitrate', '-b:a',
-      "Audio bitrate must be a number with optional suffix, e.g. '128k' or '192k'", HINT)]
+  if (!BITRATE_RE.test(s.audioBitrate)) {
+    const { message, hint } = t('l1_audio_bitrate_invalid')
+    return [err('l1_audio_bitrate', 'l1_audio_bitrate', '-b:a', message, hint)]
+  }
   return []
 }
 
 export function validateLoudnormParams(s) {
   if (!s.loudnorm) return []
   const out = []
-  const TP_HINT  = 'EBU R128 recommendation: −1 dBTP. For extra headroom: −2 dBTP. Recommended: −1'
-  const LRA_HINT = 'EBU R128 max: 18 LU. Broadcast typical: 7–10 LU. Recommended: 7'
   if (s.loudnormTruePeak !== undefined) {
-    if (!Number.isFinite(s.loudnormTruePeak) || s.loudnormTruePeak < -9 || s.loudnormTruePeak > 0)
-      out.push(err('l1_loudnorm_tp', 'l1_loudnorm_tp', '-af loudnorm TP=',
-        'Loudness true peak must be a number between -9 and 0 dBTP', TP_HINT))
+    if (!Number.isFinite(s.loudnormTruePeak) || s.loudnormTruePeak < -9 || s.loudnormTruePeak > 0) {
+      const { message, hint } = t('l1_loudnorm_tp_invalid')
+      out.push(err('l1_loudnorm_tp', 'l1_loudnorm_tp', '-af loudnorm TP=', message, hint))
+    }
   }
   if (s.loudnormLra !== undefined) {
-    if (!Number.isFinite(s.loudnormLra) || s.loudnormLra < 1 || s.loudnormLra > 20)
-      out.push(err('l1_loudnorm_lra', 'l1_loudnorm_lra', '-af loudnorm LRA=',
-        'Loudness range (LRA) must be a number between 1 and 20 LU', LRA_HINT))
+    if (!Number.isFinite(s.loudnormLra) || s.loudnormLra < 1 || s.loudnormLra > 20) {
+      const { message, hint } = t('l1_loudnorm_lra_invalid')
+      out.push(err('l1_loudnorm_lra', 'l1_loudnorm_lra', '-af loudnorm LRA=', message, hint))
+    }
   }
   return out
 }
@@ -274,18 +290,16 @@ const H265_LEVEL_CODECS_L1 = ['libx265','hevc_nvenc']
 export function validateProfile(s) {
   if (!s.profile || !s.videoCodec) return []
   if (isTemplateVar(s.profile) || isTemplateVar(s.videoCodec)) return []
-  // Skip for copy/disabled — copy_video_preset rule handles that in L2
   if (s.videoCodec === 'copy' || s.videoCodec === 'disabled') return []
   const validProfiles = PROFILES[s.videoCodec]
   if (!validProfiles) return []
-  if (validProfiles.length === 0)
-    return [warn('l1_profile_ignored', 'l1_profile', '-profile:v',
-      `${s.videoCodec} does not use -profile:v — this setting will be ignored`,
-      'Remove the profile setting or switch to a codec that supports profiles (H.264, H.265)')]
+  if (validProfiles.length === 0) {
+    const { message, hint } = t('l1_profile_ignored', { codec: s.videoCodec })
+    return [warn('l1_profile_ignored', 'l1_profile', '-profile:v', message, hint)]
+  }
   if (validProfiles.includes(s.profile)) return []
-  return [err('l1_profile', 'l1_profile', '-profile:v',
-    `Profile "${s.profile}" is not valid for ${s.videoCodec}. Valid: ${validProfiles.join(', ')}`,
-    `Common choices: ${validProfiles.slice(0, 3).join(', ')}`)]
+  const { message, hint } = t('l1_profile_invalid', { profile: s.profile, codec: s.videoCodec, valid: validProfiles.join(', '), common: validProfiles.slice(0, 3).join(', ') })
+  return [err('l1_profile', 'l1_profile', '-profile:v', message, hint)]
 }
 
 export function validatePreset(s) {
@@ -293,17 +307,16 @@ export function validatePreset(s) {
   if (isTemplateVar(s.preset) || isTemplateVar(s.videoCodec)) return []
   if (s.videoCodec === 'copy' || s.videoCodec === 'disabled') return []
   const family = CODEC_PRESET_FAMILY[s.videoCodec]
-  if (family === null)
-    return [warn('l1_preset_ignored', 'l1_preset', '-preset',
-      `${s.videoCodec} does not use -preset — this setting will be ignored`,
-      'Remove the preset setting or switch to a codec that supports presets')]
-  if (family === undefined) return []  // unknown codec, skip
+  if (family === null) {
+    const { message, hint } = t('l1_preset_ignored', { codec: s.videoCodec })
+    return [warn('l1_preset_ignored', 'l1_preset', '-preset', message, hint)]
+  }
+  if (family === undefined) return []
   const validPresets = PRESETS[family]
   if (!validPresets || validPresets.length === 0) return []
   if (validPresets.includes(s.preset)) return []
-  return [err('l1_preset', 'l1_preset', '-preset',
-    `Preset "${s.preset}" is not valid for ${s.videoCodec} (${family} family). Valid: ${validPresets.join(', ')}`,
-    `Recommended: "${family === 'cpu' ? 'medium' : 'p4'}" for a good speed/quality balance`)]
+  const { message, hint } = t('l1_preset_invalid', { preset: s.preset, codec: s.videoCodec, family, valid: validPresets.join(', '), recommended: family === 'cpu' ? 'medium' : 'p4' })
+  return [err('l1_preset', 'l1_preset', '-preset', message, hint)]
 }
 
 export function validateLevel(s) {
@@ -311,31 +324,29 @@ export function validateLevel(s) {
   if (isTemplateVar(s.level) || isTemplateVar(s.videoCodec)) return []
   if (s.videoCodec === 'copy' || s.videoCodec === 'disabled') return []
   if (H264_LEVEL_CODECS_L1.includes(s.videoCodec)) {
-    if (!VALID_LEVELS_H264.includes(s.level))
-      return [err('l1_level', 'l1_level', '-level',
-        `Level "${s.level}" is not valid for H.264. Valid: ${VALID_LEVELS_H264.join(', ')}`,
-        'Common: 4.1 (1080p60/Blu-ray), 5.1 (4K60)')]
-    if (parseFloat(s.level) >= 5.0)
-      return [warn('l1_level_high', 'l1_level_high', '-level',
-        `Level ${s.level} targets high-resolution/high-framerate content — may not play on older devices or set-top boxes`,
-        'Use 4.0–4.2 for broad HD device compatibility')]
+    if (!VALID_LEVELS_H264.includes(s.level)) {
+      const { message, hint } = t('l1_level_invalid_h264', { level: s.level, valid: VALID_LEVELS_H264.join(', ') })
+      return [err('l1_level', 'l1_level', '-level', message, hint)]
+    }
+    if (parseFloat(s.level) >= 5.0) {
+      const { message, hint } = t('l1_level_high_h264', { level: s.level })
+      return [warn('l1_level_high', 'l1_level_high', '-level', message, hint)]
+    }
     return []
   }
   if (H265_LEVEL_CODECS_L1.includes(s.videoCodec)) {
-    if (!VALID_LEVELS_H265.includes(s.level))
-      return [err('l1_level', 'l1_level', '-level',
-        `Level "${s.level}" is not valid for H.265. Valid: ${VALID_LEVELS_H265.join(', ')}`,
-        'Common: 4.1 (1080p), 5.1 (4K)')]
-    if (parseFloat(s.level) >= 6.0)
-      return [warn('l1_level_high', 'l1_level_high', '-level',
-        `Level ${s.level} targets 8K content — very few devices currently support this`,
-        'Use 5.0–5.1 for broad 4K compatibility')]
+    if (!VALID_LEVELS_H265.includes(s.level)) {
+      const { message, hint } = t('l1_level_invalid_h265', { level: s.level, valid: VALID_LEVELS_H265.join(', ') })
+      return [err('l1_level', 'l1_level', '-level', message, hint)]
+    }
+    if (parseFloat(s.level) >= 6.0) {
+      const { message, hint } = t('l1_level_high_h265', { level: s.level })
+      return [warn('l1_level_high', 'l1_level_high', '-level', message, hint)]
+    }
     return []
   }
-  // Other codecs: level has no meaning
-  return [warn('l1_level_ignored', 'l1_level', '-level',
-    `${s.videoCodec} does not use -level — this setting will be ignored`,
-    'Remove the level setting or switch to H.264/H.265')]
+  const { message, hint } = t('l1_level_ignored', { codec: s.videoCodec })
+  return [warn('l1_level_ignored', 'l1_level', '-level', message, hint)]
 }
 
 export function validateChannelLayout(s) {
@@ -343,18 +354,16 @@ export function validateChannelLayout(s) {
   if (isTemplateVar(s.channelLayout)) return []
   if (s.audioCodec === 'copy' || s.audioCodec === 'disabled') return []
   if (VALID_CHANNEL_LAYOUTS.includes(s.channelLayout)) return []
-  return [err('l1_channel_layout', 'l1_channel_layout', '-channel_layout',
-    `Channel layout "${s.channelLayout}" is not recognized. Valid: ${VALID_CHANNEL_LAYOUTS.join(', ')}`,
-    'Common: stereo (2ch), 5.1 (6ch surround), 7.1 (8ch)')]
+  const { message, hint } = t('l1_channel_layout_invalid', { layout: s.channelLayout, valid: VALID_CHANNEL_LAYOUTS.join(', ') })
+  return [err('l1_channel_layout', 'l1_channel_layout', '-channel_layout', message, hint)]
 }
 
 export function validateAspect(s) {
   if (!s.aspect) return []
   if (isTemplateVar(s.aspect)) return []
   if (ASPECT_RE.test(s.aspect)) return []
-  return [err('l1_aspect', 'l1_aspect', '-aspect',
-    `Aspect ratio must be in W:H format, e.g. 16:9 or 4:3 (got "${s.aspect}")`,
-    'Common: 16:9 (widescreen), 4:3 (standard), 21:9 (ultrawide)')]
+  const { message, hint } = t('l1_aspect_invalid', { value: s.aspect })
+  return [err('l1_aspect', 'l1_aspect', '-aspect', message, hint)]
 }
 
 // ── Field-specific validators with info/recommendations ─────────────────────
@@ -362,33 +371,34 @@ export function validateAspect(s) {
 export function validatePixFmt(s) {
   if (!s.pixFmt) return []
   if (isTemplateVar(s.pixFmt)) return []
-  const HINT = 'yuv420p = widest compatibility (web, TV, mobile). yuv422p = broadcast/editing. 10-bit = HDR content'
-  if (DEPRECATED_PIX_FMTS.includes(s.pixFmt))
-    return [warn('l1_pix_fmt', 'l1_pix_fmt', '-pix_fmt',
-      `"${s.pixFmt}" is a deprecated JPEG-range pixel format — use the modern equivalent (e.g. yuv420p with -color_range pc)`, HINT)]
-  if (!VALID_PIX_FMTS.includes(s.pixFmt))
-    return [err('l1_pix_fmt', 'l1_pix_fmt', '-pix_fmt',
-      `Pixel format must be one of: ${VALID_PIX_FMTS.join(', ')} (got "${s.pixFmt}")`, HINT)]
+  if (DEPRECATED_PIX_FMTS.includes(s.pixFmt)) {
+    const { message, hint } = t('l1_pix_fmt_deprecated', { value: s.pixFmt })
+    return [warn('l1_pix_fmt', 'l1_pix_fmt', '-pix_fmt', message, hint)]
+  }
+  if (!VALID_PIX_FMTS.includes(s.pixFmt)) {
+    const { message, hint } = t('l1_pix_fmt_invalid', { valid: VALID_PIX_FMTS.join(', '), val: s.pixFmt })
+    return [err('l1_pix_fmt', 'l1_pix_fmt', '-pix_fmt', message, hint)]
+  }
   return []
 }
 
 export function validateBsfVideo(s) {
   if (!s.bsfVideo) return []
   if (isTemplateVar(s.bsfVideo)) return []
-  const HINT = 'h264_mp4toannexb: H.264 in MPEG-TS. hevc_mp4toannexb: HEVC in MPEG-TS. Apply only codec-relevant filters'
-  if (!VALID_BSF_VIDEO.includes(s.bsfVideo))
-    return [err('l1_bsf_video', 'l1_bsf_video', '-bsf:v',
-      `Video bitstream filter must be one of: ${VALID_BSF_VIDEO.join(', ')} (got "${s.bsfVideo}")`, HINT)]
+  if (!VALID_BSF_VIDEO.includes(s.bsfVideo)) {
+    const { message, hint } = t('l1_bsf_video_invalid', { valid: VALID_BSF_VIDEO.join(', '), val: s.bsfVideo })
+    return [err('l1_bsf_video', 'l1_bsf_video', '-bsf:v', message, hint)]
+  }
   return []
 }
 
 export function validateFieldOrder(s) {
   if (!s.fieldOrder) return []
   if (isTemplateVar(s.fieldOrder)) return []
-  const HINT = 'tt = top-field-first (most common). bb = bottom-field-first (PAL DV). progressive = no interlacing'
-  if (!VALID_FIELD_ORDERS.includes(s.fieldOrder))
-    return [err('l1_field_order', 'l1_field_order', '-field_order',
-      `Field order must be one of: ${VALID_FIELD_ORDERS.join(', ')} (got "${s.fieldOrder}")`, HINT)]
+  if (!VALID_FIELD_ORDERS.includes(s.fieldOrder)) {
+    const { message, hint } = t('l1_field_order_invalid', { valid: VALID_FIELD_ORDERS.join(', '), val: s.fieldOrder })
+    return [err('l1_field_order', 'l1_field_order', '-field_order', message, hint)]
+  }
   return []
 }
 
@@ -397,35 +407,34 @@ export function validateFieldOrder(s) {
 export function validateCustomFrameSize(s) {
   if (s.frameSize !== 'custom' || !s.customFrameSize) return []
   if (isTemplateVar(s.customFrameSize)) return []
-  const HINT = 'Common: 1920x1080 (Full HD), 1280x720 (HD), 3840x2160 (4K UHD), 720x576 (SD PAL), 720x480 (SD NTSC)'
-  // Specific case: two integers separated by any non-digit, but at least one
-  // is non-positive (e.g. '1080:-1', '1920x0'). The auto-derive '-1'/'-2'
-  // shorthand is filter-only and not accepted by FFmpeg's -s parser.
   const pair = String(s.customFrameSize).match(/^(-?\d+)\D(-?\d+)$/)
   if (pair) {
     const w = parseInt(pair[1], 10)
     const h = parseInt(pair[2], 10)
-    if (w <= 0 || h <= 0)
-      return [err('l1_framesize', 'l1_framesize', '-s',
-        `Frame size "${s.customFrameSize}" has a non-positive dimension — width and height must both be positive integers. The "-1"/"-2" auto-derive shorthand is filter-only and not valid for -s`, HINT)]
+    if (w <= 0 || h <= 0) {
+      const { message, hint } = t('l1_framesize_non_positive', { value: s.customFrameSize })
+      return [err('l1_framesize', 'l1_framesize', '-s', message, hint)]
+    }
   }
-  if (!FRAMESIZE_RE.test(s.customFrameSize))
-    return [err('l1_framesize', 'l1_framesize', '-s',
-      'Frame size must be in WxH format, e.g. 1920x1080 (separator "x" or "-")', HINT)]
+  if (!FRAMESIZE_RE.test(s.customFrameSize)) {
+    const { message, hint } = t('l1_framesize_invalid')
+    return [err('l1_framesize', 'l1_framesize', '-s', message, hint)]
+  }
   return []
 }
 
 export function validateCustomFps(s) {
   if (s.fps !== 'custom' || !s.customFps) return []
   if (isTemplateVar(s.customFps)) return []
-  const HINT = 'Common: 23.976 (film), 25 (PAL/EU), 29.97 or 30000/1001 (NTSC), 30, 50, 59.94, 60. Fractional notation (e.g. 30000/1001) is supported'
   const n = parseFps(s.customFps)
-  if (isNaN(n) || n <= 0)
-    return [err('l1_fps', 'l1_fps', '-r',
-      `Custom FPS "${s.customFps}" is not a valid frame rate — use a decimal (29.97) or fractional notation (30000/1001)`, HINT)]
-  if (n > 120)
-    return [warn('l1_fps', 'l1_fps', '-r',
-      `FPS ${s.customFps} (≈${n.toFixed(3)}) is unusually high — most displays and encoders max out at 60`, HINT)]
+  if (isNaN(n) || n <= 0) {
+    const { message, hint } = t('l1_fps_invalid', { value: s.customFps })
+    return [err('l1_fps', 'l1_fps', '-r', message, hint)]
+  }
+  if (n > 120) {
+    const { message, hint } = t('l1_fps_high', { value: s.customFps, approx: n.toFixed(3) })
+    return [warn('l1_fps', 'l1_fps', '-r', message, hint)]
+  }
   return []
 }
 
@@ -435,34 +444,27 @@ export function validateCustomFps(s) {
 // and FFmpeg will refuse the filter graph.
 export function validateScaleFilter(s) {
   if (!Array.isArray(s.vfAtoms) || s.vfAtoms.length === 0) return []
-  const HINT = 'Inside the scale filter use ":", e.g. scale=1920:1080 or scale=w=1920:h=1080. The "x" separator is only valid for -s'
-  const HINT_COMMA = 'Inside a filter, separate width and height with ":" — comma "," separates filters in the chain. Use scale=W:H, not scale=W,H'
   const out = []
   for (let i = 0; i < s.vfAtoms.length; i++) {
     const a = s.vfAtoms[i]
     if (a.name !== 'scale' && !a.name.startsWith('scale_')) continue
     const w = a.args.w ?? a.args.width
     const h = a.args.h ?? a.args.height
-    // Typo pattern: width contains a 'WxH' (or 'W×H') pair and height is missing.
     if (h === undefined && typeof w === 'string' && /^\d+\s*[x×]\s*\d+$/.test(w)) {
-      out.push(err('l1_vf_scale_syntax', 'l1_vf_scale_syntax', '-vf',
-        `${a.name} value "${w}" uses the wrong separator — the scale filter requires "W:H", not "WxH"`, HINT))
+      const { message, hint } = t('l1_vf_scale_wrong_separator', { name: a.name, value: w })
+      out.push(err('l1_vf_scale_syntax', 'l1_vf_scale_syntax', '-vf', message, hint))
       continue
     }
-    // Either dimension missing entirely (e.g. `scale=1920`).
     if ((w === undefined || h === undefined) && (w !== undefined || h !== undefined)) {
-      // Special case: `scale=W,H` was split by the chain parser into
-      // `scale=W` followed by an orphan filter named `H`. Detect that the
-      // next atom has a numeric-only name to emit a clearer message.
       const next = s.vfAtoms[i + 1]
       if (h === undefined && typeof w === 'string' && /^\d+$/.test(w)
           && next && /^-?\d+$/.test(next.name)) {
-        out.push(err('l1_vf_scale_syntax', 'l1_vf_scale_syntax', '-vf',
-          `${a.name}=${w},${next.name} uses "," between width and height — comma separates filters in the chain, use ":" instead (${a.name}=${w}:${next.name})`, HINT_COMMA))
+        const { message, hint } = t('l1_vf_scale_comma_separator', { name: a.name, w, h: next.name })
+        out.push(err('l1_vf_scale_syntax', 'l1_vf_scale_syntax', '-vf', message, hint))
         continue
       }
-      out.push(err('l1_vf_scale_syntax', 'l1_vf_scale_syntax', '-vf',
-        `${a.name} requires both width and height — use ${a.name}=W:H or ${a.name}=w=W:h=H`, HINT))
+      const { message, hint } = t('l1_vf_scale_missing_dim', { name: a.name })
+      out.push(err('l1_vf_scale_syntax', 'l1_vf_scale_syntax', '-vf', message, hint))
     }
   }
   return out
@@ -471,55 +473,58 @@ export function validateScaleFilter(s) {
 export function validateGop(s) {
   if (s.gop === undefined) return []
   if (isTemplateVar(s.gop)) return []
-  const HINT = 'Formula: fps × keyframe_interval_seconds. E.g. 25 fps × 4 s = 100. Typical live: 50–250. Recommended: match segment duration'
-  if (!Number.isInteger(s.gop) || s.gop <= 0 || s.gop > INT32_MAX)
-    return [err('l1_gop', 'l1_gop', '-g', `GOP must be a positive integer (1–${INT32_MAX})`, HINT)]
-  if (s.gop > 1000)
-    return [warn('l1_gop', 'l1_gop', '-g',
-      `GOP ${s.gop} is very large — may cause long seek times and poor error recovery`, HINT)]
+  if (!Number.isInteger(s.gop) || s.gop <= 0 || s.gop > INT32_MAX) {
+    const { message, hint } = t('l1_gop_invalid', { max: INT32_MAX })
+    return [err('l1_gop', 'l1_gop', '-g', message, hint)]
+  }
+  if (s.gop > 1000) {
+    const { message, hint } = t('l1_gop_high', { value: s.gop })
+    return [warn('l1_gop', 'l1_gop', '-g', message, hint)]
+  }
   return []
 }
 
 export function validateCrf(s) {
   if (s.bitrateMode !== 'crf' || s.crfValue === undefined || !s.videoCodec) return []
-  const HINT = 'Lower = better quality, larger file. H.264 typical: 18–28, recommended: 23. HEVC typical: 22–32, recommended: 28. AV1 typical: 20–40, recommended: 30'
-  if (!Number.isFinite(s.crfValue))
-    return [err('l1_crf', 'l1_crf', '-crf',
-      'CRF value must be a valid number', HINT)]
+  if (!Number.isFinite(s.crfValue)) {
+    const { message, hint } = t('l1_crf_invalid')
+    return [err('l1_crf', 'l1_crf', '-crf', message, hint)]
+  }
   const range = CRF_RANGE[s.videoCodec]
   if (!range) return []
   const [min, max] = range
-  if (s.crfValue < min || s.crfValue > max)
-    return [err('l1_crf', 'l1_crf', '-crf',
-      `CRF value must be ${min}–${max} for ${s.videoCodec}`, HINT)]
+  if (s.crfValue < min || s.crfValue > max) {
+    const { message, hint } = t('l1_crf_range', { min, max, codec: s.videoCodec })
+    return [err('l1_crf', 'l1_crf', '-crf', message, hint)]
+  }
   return []
 }
 
 export function validateBitrates(s) {
   const out = []
-  const BR_HINT  = 'Typical: 500k (SD), 2M (720p), 4–8M (1080p), 15–25M (4K). Use k/M suffix'
-  const MR_HINT  = 'Typically 10–20% above target bitrate. Must be paired with -bufsize. Example: target=4M → maxrate=5M'
-  const BUF_HINT = '2× maxrate for broadcast VBR, 1× maxrate for streaming. Example: maxrate=5M → bufsize=10M'
-  if (s.targetBitrate && !isTemplateVar(s.targetBitrate) && !BITRATE_RE.test(s.targetBitrate))
-    out.push(err('l1_bitrate', 'l1_bitrate', '-b:v',
-      "Bitrate must be a number with optional suffix, e.g. '4M' or '500k'", BR_HINT))
-  if (s.maxrate && !isTemplateVar(s.maxrate) && !BITRATE_RE.test(s.maxrate))
-    out.push(err('l1_maxrate', 'l1_maxrate', '-maxrate',
-      'Max rate must be a number with optional suffix', MR_HINT))
-  if (s.bufsize && !isTemplateVar(s.bufsize) && !BITRATE_RE.test(s.bufsize))
-    out.push(err('l1_bufsize', 'l1_bufsize', '-bufsize',
-      'Buffer size must be a number with optional suffix', BUF_HINT))
+  if (s.targetBitrate && !isTemplateVar(s.targetBitrate) && !BITRATE_RE.test(s.targetBitrate)) {
+    const { message, hint } = t('l1_bitrate_invalid')
+    out.push(err('l1_bitrate', 'l1_bitrate', '-b:v', message, hint))
+  }
+  if (s.maxrate && !isTemplateVar(s.maxrate) && !BITRATE_RE.test(s.maxrate)) {
+    const { message, hint } = t('l1_maxrate_invalid')
+    out.push(err('l1_maxrate', 'l1_maxrate', '-maxrate', message, hint))
+  }
+  if (s.bufsize && !isTemplateVar(s.bufsize) && !BITRATE_RE.test(s.bufsize)) {
+    const { message, hint } = t('l1_bufsize_invalid')
+    out.push(err('l1_bufsize', 'l1_bufsize', '-bufsize', message, hint))
+  }
   return out
 }
 
 export function validatePids(s) {
   const out = []
-  const HINT = 'Convention: PMT at 256, video at 257, audio at 258. Avoid 0–31 (reserved) and 8191 (null packet)'
   const checkPid = (val, id, flag) => {
     if (val === undefined) return
     if (isTemplateVar(val)) return
     if (val >= 32 && val <= 8186) return
-    out.push(err(id, id, flag, `PID must be between 32 and 8186 (got ${val})`, HINT))
+    const { message, hint } = t('l1_pid_invalid', { value: val })
+    out.push(err(id, id, flag, message, hint))
   }
   checkPid(s.mpegtsStartPid,    'l1_pid_start', '-mpegts_start_pid')
   checkPid(s.mpegtsPmtStartPid, 'l1_pid_pmt',   '-mpegts_pmt_start_pid')
@@ -529,42 +534,43 @@ export function validatePids(s) {
 export function validatePcrPeriod(s) {
   if (s.pcrPeriod === undefined) return []
   if (isTemplateVar(s.pcrPeriod)) return []
-  const HINT = 'DVB spec max: 100 ms. FFmpeg default: 20 ms. Recommended: 40 ms for broadcast, 20 ms for IPTV'
-  if (!Number.isInteger(s.pcrPeriod) || s.pcrPeriod <= 0 || s.pcrPeriod > 100)
-    return [err('l1_pcr', 'l1_pcr', '-pcr_period',
-      'PCR period must be an integer between 1 and 100 ms (DVB spec max)', HINT)]
+  if (!Number.isInteger(s.pcrPeriod) || s.pcrPeriod <= 0 || s.pcrPeriod > 100) {
+    const { message, hint } = t('l1_pcr_invalid')
+    return [err('l1_pcr', 'l1_pcr', '-pcr_period', message, hint)]
+  }
   return []
 }
 
 export function validateDialnorm(s) {
   if (s.dialnorm === undefined) return []
   if (isTemplateVar(s.dialnorm)) return []
-  const HINT = 'Dolby standard: −27 for film, −24 for TV. EBU R128 (−23 LUFS) maps to −23. Recommended broadcast: −27'
-  if (!Number.isInteger(s.dialnorm) || s.dialnorm < -31 || s.dialnorm > -1)
-    return [err('l1_dialnorm', 'l1_dialnorm', '-dialnorm',
-      'Dialogue normalization must be an integer between -31 and -1 dBFS', HINT)]
+  if (!Number.isInteger(s.dialnorm) || s.dialnorm < -31 || s.dialnorm > -1) {
+    const { message, hint } = t('l1_dialnorm_invalid')
+    return [err('l1_dialnorm', 'l1_dialnorm', '-dialnorm', message, hint)]
+  }
   return []
 }
 
 export function validateLoudnorm(s) {
   if (!s.loudnorm || s.loudnormTarget === undefined) return []
-  const HINT = 'EBU R128: −23 LUFS. Netflix: −27 LUFS. YouTube normalises to −14 LUFS. Podcast: −16 LUFS. Recommended broadcast: −23'
-  if (s.loudnormTarget < -70 || s.loudnormTarget > 0)
-    return [err('l1_loudnorm_target', 'l1_loudnorm', '-af loudnorm I=',
-      'Loudness target must be between -70 and 0 LUFS', HINT)]
+  if (s.loudnormTarget < -70 || s.loudnormTarget > 0) {
+    const { message, hint } = t('l1_loudnorm_target_invalid')
+    return [err('l1_loudnorm_target', 'l1_loudnorm', '-af loudnorm I=', message, hint)]
+  }
   return []
 }
 
 export function validateTimeout(s) {
   if (s.timeout === undefined) return []
   if (isTemplateVar(s.timeout)) return []
-  const HINT = 'SRT/RTSP on stable network: 5 000 000 µs (5 s). Unstable/satellite links: 10 000 000 µs (10 s). Recommended: 5 000 000'
-  if (!Number.isInteger(s.timeout) || s.timeout <= 0 || s.timeout > INT32_MAX)
-    return [err('l1_timeout', 'l1_timeout', '-timeout',
-      `Timeout must be a positive integer in microseconds (1–${INT32_MAX})`, HINT)]
-  if (s.timeout > 30_000_000)
-    return [warn('l1_timeout', 'l1_timeout', '-timeout',
-      `Timeout ${(s.timeout / 1_000_000).toFixed(0)}s is very high — may delay failure detection on dead sources`, HINT)]
+  if (!Number.isInteger(s.timeout) || s.timeout <= 0 || s.timeout > INT32_MAX) {
+    const { message, hint } = t('l1_timeout_invalid', { max: INT32_MAX })
+    return [err('l1_timeout', 'l1_timeout', '-timeout', message, hint)]
+  }
+  if (s.timeout > 30_000_000) {
+    const { message, hint } = t('l1_timeout_high', { seconds: (s.timeout / 1_000_000).toFixed(0) })
+    return [warn('l1_timeout', 'l1_timeout', '-timeout', message, hint)]
+  }
   return []
 }
 // ── New validators ────────────────────────────────────────────────────────────────────────
@@ -572,66 +578,59 @@ export function validateTimeout(s) {
 export function validateAnalyzeDuration(s) {
   if (s.analyzeDuration === undefined) return []
   if (isTemplateVar(s.analyzeDuration)) return []
-  const HINT = 'Unit: microseconds. Common: 5 000 000 (5 s), 10 000 000 (10 s). ' +
-    'Higher values delay stream start but improve codec detection on complex inputs. ' +
-    'FFmpeg default: 5 000 000. For reliable live IPTV sources 5 000 000 is usually sufficient'
-  if (!Number.isInteger(s.analyzeDuration) || s.analyzeDuration <= 0 || s.analyzeDuration > 120_000_000)
-    return [err('l1_analyze_duration', 'l1_analyze_duration', '-analyzeduration',
-      `Analyze duration must be a positive integer in microseconds, max 120 000 000 (2 min) (got ${s.analyzeDuration})`, HINT)]
-  if (s.analyzeDuration > 30_000_000)
-    return [warn('l1_analyze_duration', 'l1_analyze_duration', '-analyzeduration',
-      `Analyze duration ${(s.analyzeDuration / 1_000_000).toFixed(0)} s is very high — causes a long startup delay before the stream begins`, HINT)]
+  if (!Number.isInteger(s.analyzeDuration) || s.analyzeDuration <= 0 || s.analyzeDuration > 120_000_000) {
+    const { message, hint } = t('l1_analyze_duration_invalid', { value: s.analyzeDuration })
+    return [err('l1_analyze_duration', 'l1_analyze_duration', '-analyzeduration', message, hint)]
+  }
+  if (s.analyzeDuration > 30_000_000) {
+    const { message, hint } = t('l1_analyze_duration_high', { seconds: (s.analyzeDuration / 1_000_000).toFixed(0) })
+    return [warn('l1_analyze_duration', 'l1_analyze_duration', '-analyzeduration', message, hint)]
+  }
   return []
 }
 
 export function validateProbeSize(s) {
   if (s.probeSize === undefined) return []
   if (isTemplateVar(s.probeSize)) return []
-  const HINT = 'Unit: bytes. Common: 5 000 000 (5 MB), 10 000 000 (10 MB). ' +
-    'Higher values improve format/codec detection but use more memory. ' +
-    'FFmpeg default: 5 000 000. Pair with -analyzeduration for hard-to-detect streams'
-  if (!Number.isInteger(s.probeSize) || s.probeSize <= 0 || s.probeSize > 1_000_000_000)
-    return [err('l1_probe_size', 'l1_probe_size', '-probesize',
-      `Probe size must be a positive integer in bytes, max 1 000 000 000 (1 GB) (got ${s.probeSize})`, HINT)]
-  if (s.probeSize > 100_000_000)
-    return [warn('l1_probe_size', 'l1_probe_size', '-probesize',
-      `Probe size ${(s.probeSize / 1_000_000).toFixed(0)} MB is very high — may cause significant memory usage and startup latency`, HINT)]
+  if (!Number.isInteger(s.probeSize) || s.probeSize <= 0 || s.probeSize > 1_000_000_000) {
+    const { message, hint } = t('l1_probe_size_invalid', { value: s.probeSize })
+    return [err('l1_probe_size', 'l1_probe_size', '-probesize', message, hint)]
+  }
+  if (s.probeSize > 100_000_000) {
+    const { message, hint } = t('l1_probe_size_high', { mb: (s.probeSize / 1_000_000).toFixed(0) })
+    return [warn('l1_probe_size', 'l1_probe_size', '-probesize', message, hint)]
+  }
   return []
 }
 
 export function validateGpuIndex(s) {
   if (s.gpuIndex === undefined) return []
   if (isTemplateVar(s.gpuIndex)) return []
-  const HINT = '-1 = FFmpeg auto-selects any available GPU. 0 = first GPU, 1 = second GPU, etc. ' +
-    'Only affects NVENC/NVDEC. Recommended: -1 (auto) unless you specifically need a particular device'
-  if (!Number.isInteger(s.gpuIndex) || s.gpuIndex < -1 || s.gpuIndex > 15)
-    return [err('l1_gpu_index', 'l1_gpu_index', '-gpu',
-      `GPU index must be an integer from -1 (auto) to 15 (got ${s.gpuIndex})`, HINT)]
+  if (!Number.isInteger(s.gpuIndex) || s.gpuIndex < -1 || s.gpuIndex > 15) {
+    const { message, hint } = t('l1_gpu_index_invalid', { value: s.gpuIndex })
+    return [err('l1_gpu_index', 'l1_gpu_index', '-gpu', message, hint)]
+  }
   return []
 }
 
 export function validateListen(s) {
   if (s.listen === undefined) return []
   if (isTemplateVar(s.listen)) return []
-  const HINT = '0 = client mode (default, connect to URL). 1 = server mode (bind and wait for incoming connection). ' +
-    'Use listen=1 on the output URL for TCP/MPEG-TS push receivers. ' +
-    'The output URL must use the tcp:// scheme or a host:port address'
-  if (s.listen !== 0 && s.listen !== 1)
-    return [err('l1_listen', 'l1_listen', '-listen',
-      `Listen mode must be 0 (client) or 1 (server) (got ${s.listen})`, HINT)]
+  if (s.listen !== 0 && s.listen !== 1) {
+    const { message, hint } = t('l1_listen_invalid', { value: s.listen })
+    return [err('l1_listen', 'l1_listen', '-listen', message, hint)]
+  }
   return []
 }
 
 export function validateStreamLoop(s) {
   if (s.streamLoop === undefined) return []
-  // Accept boolean true for backward compatibility (treated as infinite loop = -1)
   if (s.streamLoop === true) return []
   if (isTemplateVar(s.streamLoop)) return []
-  const HINT = '-1 = loop indefinitely, 0 = play once (no loop), N > 0 = repeat N additional times. ' +
-    'Always pair with -re to avoid flooding the output. Recommended: -stream_loop -1 -re for broadcast playout'
-  if (!Number.isInteger(s.streamLoop) || s.streamLoop < -1)
-    return [err('l1_stream_loop', 'l1_stream_loop', '-stream_loop',
-      `Stream loop must be -1 (infinite), 0 (no loop), or a positive integer count (got ${s.streamLoop})`, HINT)]
+  if (!Number.isInteger(s.streamLoop) || s.streamLoop < -1) {
+    const { message, hint } = t('l1_stream_loop_invalid', { value: s.streamLoop })
+    return [err('l1_stream_loop', 'l1_stream_loop', '-stream_loop', message, hint)]
+  }
   return []
 }
 // ── Helper ────────────────────────────────────────────────────────────────────
@@ -661,10 +660,10 @@ function info(id, group, flag, message, hint) {
 export function validateNvdecDeint(s) {
   if (s.nvdecDeint === undefined) return []
   if (isTemplateVar(s.nvdecDeint)) return []
-  const HINT = '0 = weave (no deinterlace). 1 = bob (frame-rate deinterlace). 2 = adaptive. Only effective with NVDEC cuvid decoders (-hwaccel cuda)'
-  if (!VALID_NVDEC_DEINT.includes(s.nvdecDeint))
-    return [err('l1_nvdec_deint', 'l1_nvdec_deint', '-deint',
-      `NVDEC deinterlace mode must be one of: ${VALID_NVDEC_DEINT.join(', ')} (got "${s.nvdecDeint}")`, HINT)]
+  if (!VALID_NVDEC_DEINT.includes(s.nvdecDeint)) {
+    const { message, hint } = t('l1_nvdec_deint_invalid', { valid: VALID_NVDEC_DEINT.join(', '), val: s.nvdecDeint })
+    return [err('l1_nvdec_deint', 'l1_nvdec_deint', '-deint', message, hint)]
+  }
   return []
 }
 
@@ -677,8 +676,8 @@ function validateEnum(s, field, id, flag, validValues, label) {
   if (val === undefined || val === null || val === '') return []
   if (isTemplateVar(val)) return []
   if (validValues.includes(val)) return []
-  return [err(id, id, flag,
-    `${label} must be one of: ${validValues.join(', ')} (got "${val}")`)]
+  const { message, hint } = t(id, { label, valid: validValues.join(', '), val })
+  return [err(id, id, flag, message, hint)]
 }
 
 /**
@@ -690,6 +689,6 @@ function validateArrayEnum(s, field, id, flag, validValues, label) {
   if (!Array.isArray(arr) || arr.length === 0) return []
   const invalid = arr.filter(v => !validValues.includes(v) && !isTemplateVar(v))
   if (invalid.length === 0) return []
-  return [err(id, id, flag,
-    `Unknown ${label} value(s): ${invalid.join(', ')}. Valid: ${validValues.join(', ')}`)]
+  const { message, hint } = t(id, { label, invalid: invalid.join(', '), valid: validValues.join(', ') })
+  return [err(id, id, flag, message, hint)]
 }
