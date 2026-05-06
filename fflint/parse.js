@@ -290,13 +290,11 @@ function parseTokens(str) {
   }
 
   // Determine bitrate mode from parsed flags.
-  // CBR heuristic: -b:v + -maxrate + -bufsize (HRD triplet) → cbr,
-  // regardless of whether maxrate equals bitrate or not.
-  // VBR: -b:v + -maxrate without -bufsize (capped-VBR / soft cap).
-  // Simple CBR: only -b:v (or maxrate === bitrate, no bufsize).
+  // VBR: maxrate differs from bitrate (capped VBR), regardless of bufsize.
+  // CBR: maxrate equals bitrate or only -b:v is set.
   if (raw.bitrateMode !== 'crf') {
     if (raw.bitrate || raw.maxrate) {
-      if (raw.maxrate && raw.maxrate !== raw.bitrate && !raw.bufsize) {
+      if (raw.maxrate && raw.maxrate !== raw.bitrate) {
         raw.bitrateMode = 'vbr'
       } else {
         raw.bitrateMode = 'cbr'
