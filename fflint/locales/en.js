@@ -1,7 +1,7 @@
 // locales/en.js — English message catalog for fflint validators
 import {
   PRESETS, LEVEL_LIMITS, CHANNEL_LAYOUT_CHANNELS, AUDIO_BITRATE_FLOOR,
-  parseBitrate, parseFps, parseFrameSize,
+  parseBitrate, parseFps,
 } from '../codec-data.js'
 import { getScaleSize } from '../vf-parse.js'
 
