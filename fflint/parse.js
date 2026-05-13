@@ -80,6 +80,7 @@ function parseTokens(str) {
     reconnect: false, reconnectStreamed: false,
     channelLayout: '', listen: '', aspect: '', fpsMode: '', maxMuxingQueueSize: '',
     inputType: 'udp', logoPath: '',
+    inputs: [], outputValue: '',
     passthroughPreInput: [], passthroughPostInput: [],
     tune: '', tier: '', lookahead: '',
     _flagOrder: [],
@@ -108,6 +109,7 @@ function parseTokens(str) {
         if ((inp.startsWith('"') && inp.endsWith('"')) || (inp.startsWith("'") && inp.endsWith("'")))
           inp = inp.slice(1, -1)
         inputCount++
+        raw.inputs.push(inp)
         if (!passedInput) raw._flagOrder.push('_input')
         if (inp === '-' || inp === 'pipe:0') raw.inputType = 'pipe'
         else if (!passedInput) {
@@ -119,8 +121,6 @@ function parseTokens(str) {
             else if (inp.startsWith('srt://'))  raw.inputType = 'srt'
             else raw.inputType = 'file'
           }
-        } else {
-          raw.logoPath = inp
         }
         passedInput = true
         break
@@ -183,6 +183,7 @@ function parseTokens(str) {
           const { atoms } = parseFilterChain(_fv)
           const dein = findDeinterlacer(atoms)
           if (dein) raw.deinterlaceFilter = dein
+          if (atoms.some(a => a.name === 'overlay')) raw.hasOverlay = true
         }
         raw._flagOrder.push('filterComplex')
         break
@@ -302,6 +303,36 @@ function parseTokens(str) {
     }
   }
 
+  // Set logoPath only when an overlay filter is explicitly present
+  if (raw.hasOverlay && raw.inputs.length >= 2) {
+    raw.logoPath = raw.inputs[1]
+  }
+
+  // Detect output target: last positional (non-flag, non-flag-value) token
+  for (let j = tokens.length - 1; j >= 0; j--) {
+    const tok = tokens[j]
+    if (tok.startsWith('-')) continue
+    // Skip values that belong to the preceding flag
+    if (j > 0 && tokens[j - 1].startsWith('-') && !tokens[j - 1].startsWith('${')) {
+      const prevNorm = tokens[j - 1].replace(/^(-[a-z_]+:[vasd]):\d+$/i, '$1')
+      if (VALUE_FLAGS.has(prevNorm)) continue
+    }
+    if (tok === 'ffmpeg') continue
+    raw.outputValue = tok
+    raw._flagOrder.push('_output')
+    break
+  }
+
+  // Infer outputFormat from output extension when -f was not specified
+  if (raw.outputValue && !raw._flagOrder.includes('outputFormat')) {
+    const EXT_TO_FORMAT = { '.ts': 'mpegts', '.mp4': 'mp4', '.flv': 'flv', '.m3u8': 'hls', '.mkv': 'matroska' }
+    const extMatch = raw.outputValue.match(/(\.[a-z0-9]+)$/i)
+    if (extMatch) {
+      const fmt = EXT_TO_FORMAT[extMatch[1].toLowerCase()]
+      if (fmt) raw.outputFormat = fmt
+    }
+  }
+
   raw.inputCount = inputCount
   return raw
 }
@@ -385,6 +416,10 @@ function toFflintState(s) {
   }
 
   if (s.logoPath) f.logoPath = s.logoPath
+
+  // Input values and output target for round-trip
+  if (Array.isArray(s.inputs) && s.inputs.length) f.inputs = s.inputs
+  if (s.outputValue) f.outputValue = s.outputValue
 
   // Filter chain (preserved verbatim for round-trip + atoms for L2/L3 rules)
   if (s.vfChain) f.vfChain = s.vfChain

@@ -732,6 +732,190 @@ console.log('\n\x1b[1m═══ Section: Subtitles ═══\x1b[0m')
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+console.log('\n\x1b[1m═══ Section: parse() — inputs[] and outputValue ═══\x1b[0m')
+// ═══════════════════════════════════════════════════════════════════════════════
+
+{
+  // Senta-style placeholders: ${i} and ${o}
+  const s = parse('ffmpeg -y -i ${i} -c:v copy -c:a copy -f mpegts ${o}')
+  assert('inputs array with ${i}', eq(s.inputs, ['${i}']))
+  assert('outputValue with ${o}', s.outputValue === '${o}')
+  assert('inputType default udp', s.inputType === 'udp')
+}
+
+{
+  // Static input URL + static output URL
+  const s = parse('ffmpeg -i udp://239.0.0.1:1234 -c:v copy -c:a copy -f mpegts udp://239.1.1.1:5678')
+  assert('inputs[0] = udp URL', s.inputs[0] === 'udp://239.0.0.1:1234')
+  assert('inputType = udp', s.inputType === 'udp')
+  assert('outputValue = udp URL', s.outputValue === 'udp://239.1.1.1:5678')
+}
+
+{
+  // Static HTTP input + static file output
+  const s = parse('ffmpeg -i "http://example.com:8080/live/user/pass/12345.ts" -c copy -f mpegts udp://239.1.1.1:1234')
+  assert('inputs[0] = http URL', s.inputs[0] === 'http://example.com:8080/live/user/pass/12345.ts')
+  assert('inputType = http', s.inputType === 'http')
+  assert('outputValue = udp URL', s.outputValue === 'udp://239.1.1.1:1234')
+}
+
+{
+  // RTSP input + HLS file output
+  const s = parse('ffmpeg -i "rtsp://camera-ip/stream" -c:v libx264 -preset veryfast -c:a aac -f hls /var/www/html/stream.m3u8')
+  assert('inputs[0] = rtsp URL', s.inputs[0] === 'rtsp://camera-ip/stream')
+  assert('inputType = file (rtsp not in known types)', s.inputType === 'file')
+  assert('outputValue = m3u8 path', s.outputValue === '/var/www/html/stream.m3u8')
+}
+
+{
+  // File input
+  const s = parse('ffmpeg -i /path/to/video.ts -c copy -f mpegts ${o}')
+  assert('inputs[0] = file path', s.inputs[0] === '/path/to/video.ts')
+  assert('inputType = file', s.inputType === 'file')
+  assert('outputValue = ${o}', s.outputValue === '${o}')
+}
+
+{
+  // Two inputs: main + second source (no overlay)
+  const s = parse('ffmpeg -i ${i} -i /path/logo.png -c:v libx264 -preset fast -b:v 4M -c:a aac -f mpegts ${o}')
+  assert('inputs length = 2', s.inputs.length === 2)
+  assert('inputs[0] = ${i}', s.inputs[0] === '${i}')
+  assert('inputs[1] = logo', s.inputs[1] === '/path/logo.png')
+  assert('no logoPath without overlay', !s.logoPath)
+}
+
+{
+  // Three inputs (multi-input, no overlay)
+  const s = parse('ffmpeg -i input1.ts -i input2.ts -i input3.ts -filter_complex "[0:v][1:v][2:v]hstack=inputs=3[out]" -map "[out]" -c:v libx264 -f mp4 output.mp4')
+  assert('inputs length = 3', s.inputs.length === 3)
+  assert('inputs[0]', s.inputs[0] === 'input1.ts')
+  assert('inputs[1]', s.inputs[1] === 'input2.ts')
+  assert('inputs[2]', s.inputs[2] === 'input3.ts')
+  assert('no logoPath without overlay', !s.logoPath)
+  assert('outputValue = output.mp4', s.outputValue === 'output.mp4')
+}
+
+{
+  // Two inputs with explicit overlay → logoPath is set
+  const s = parse('ffmpeg -i ${i} -i /path/logo.png -filter_complex overlay -c:v libx264 -preset fast -b:v 4M -c:a aac -f mpegts ${o}')
+  assert('inputs length = 2 (overlay)', s.inputs.length === 2)
+  assert('logoPath set with overlay', s.logoPath === '/path/logo.png')
+}
+
+{
+  // Two inputs with overlay=10:10 → logoPath is set
+  const s = parse('ffmpeg -i ${i} -i /logo.png -filter_complex "overlay=10:10" -c:v libx264 -b:v 4M -c:a aac -f mpegts ${o}')
+  assert('logoPath set with overlay=10:10', s.logoPath === '/logo.png')
+}
+
+{
+  // Three inputs, overlay present → logoPath = inputs[1]
+  const s = parse('ffmpeg -i main.ts -i logo.png -i sub.srt -filter_complex "[0:v][1:v]overlay=10:10" -c:v libx264 -f mp4 out.mp4')
+  assert('3 inputs + overlay → logoPath = inputs[1]', s.logoPath === 'logo.png')
+  assert('all 3 inputs preserved', s.inputs.length === 3)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+console.log('\n\x1b[1m═══ Section: parse() — outputFormat inference from extension ═══\x1b[0m')
+// ═══════════════════════════════════════════════════════════════════════════════
+
+{
+  // .mp4 without -f → outputFormat inferred as mp4
+  const s = parse('ffmpeg -i ${i} -c:v libx264 -preset fast -b:v 4M -c:a aac output.mp4')
+  assert('outputFormat inferred mp4', s.outputFormat === 'mp4')
+  assert('outputValue = output.mp4', s.outputValue === 'output.mp4')
+}
+
+{
+  // .m3u8 without -f → hls
+  const s = parse('ffmpeg -i ${i} -c:v libx264 -c:a aac /var/www/stream.m3u8')
+  assert('outputFormat inferred hls', s.outputFormat === 'hls')
+}
+
+{
+  // .mkv without -f → matroska
+  const s = parse('ffmpeg -i ${i} -c:v libx264 -c:a aac output.mkv')
+  assert('outputFormat inferred matroska', s.outputFormat === 'matroska')
+}
+
+{
+  // .flv without -f → flv
+  const s = parse('ffmpeg -i ${i} -c:v libx264 -c:a aac output.flv')
+  assert('outputFormat inferred flv', s.outputFormat === 'flv')
+}
+
+{
+  // .ts without -f → mpegts
+  const s = parse('ffmpeg -i ${i} -c:v libx264 -c:a aac output.ts')
+  assert('outputFormat inferred mpegts', s.outputFormat === 'mpegts')
+}
+
+{
+  // Explicit -f wins over extension inference
+  const s = parse('ffmpeg -i ${i} -c:v libx264 -c:a aac -f mpegts output.mp4')
+  assert('explicit -f wins', s.outputFormat === 'mpegts')
+  assert('outputValue still stored', s.outputValue === 'output.mp4')
+}
+
+{
+  // No extension, no -f → default mpegts
+  const s = parse('ffmpeg -i ${i} -c:v copy -c:a copy udp://239.1.1.1:1234')
+  assert('no ext → default mpegts', s.outputFormat === 'mpegts')
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+console.log('\n\x1b[1m═══ Section: Round-trip — inputs/output preservation ═══\x1b[0m')
+// ═══════════════════════════════════════════════════════════════════════════════
+
+{
+  // Senta placeholders round-trip
+  const original = 'ffmpeg -y -hide_banner -i ${i} -c:v copy -c:a copy -f mpegts ${o}'
+  const cmd = serialize(parse(original))
+  assert('RT: -i ${i} preserved', cmd.includes('-i ${i}'))
+  assert('RT: ${o} preserved', cmd.endsWith('${o}'))
+}
+
+{
+  // Static input + output round-trip
+  const original = 'ffmpeg -i udp://239.0.0.1:1234 -c:v copy -c:a copy -f mpegts udp://239.1.1.1:5678'
+  const cmd = serialize(parse(original))
+  assert('RT: static input preserved', cmd.includes('-i udp://239.0.0.1:1234'))
+  assert('RT: static output preserved', cmd.endsWith('udp://239.1.1.1:5678'))
+}
+
+{
+  // Mixed: static input + ${o} placeholder
+  const original = 'ffmpeg -i http://example.com/stream -c:v copy -c:a copy -f mpegts ${o}'
+  const cmd = serialize(parse(original))
+  assert('RT: static input + ${o}', cmd.includes('-i http://example.com/stream') && cmd.endsWith('${o}'))
+}
+
+{
+  // Mixed: ${i} + static output
+  const original = 'ffmpeg -i ${i} -c:v copy -c:a copy -f mpegts udp://239.1.1.1:5678'
+  const cmd = serialize(parse(original))
+  assert('RT: ${i} + static output', cmd.includes('-i ${i}') && cmd.endsWith('udp://239.1.1.1:5678'))
+}
+
+{
+  // Multi-input round-trip
+  const original = 'ffmpeg -i input1.ts -i input2.ts -i input3.ts -map 0:v -c:v libx264 -preset fast -b:v 4M -c:a aac -f mp4 output.mp4'
+  const state = parse(original)
+  const cmd = serialize(state)
+  assert('RT: 3 inputs present', cmd.includes('-i input1.ts') && cmd.includes('-i input2.ts') && cmd.includes('-i input3.ts'))
+  assert('RT: output.mp4 present', cmd.endsWith('output.mp4'))
+}
+
+{
+  // Two inputs (main + logo) round-trip
+  const original = 'ffmpeg -i ${i} -i /logo.png -c:v libx264 -preset fast -b:v 4M -c:a aac -f mpegts ${o}'
+  const state = parse(original)
+  const cmd = serialize(state)
+  assert('RT: 2 inputs preserved', cmd.includes('-i ${i}') && cmd.includes('-i /logo.png'))
+  assert('RT: ${o} preserved', cmd.endsWith('${o}'))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 console.log(`\n\x1b[1m═══ Results: ${pass}/${pass + fail} passed ═══\x1b[0m`)
 if (fail > 0) {
   console.log(`\x1b[31m${fail} test(s) FAILED\x1b[0m`)

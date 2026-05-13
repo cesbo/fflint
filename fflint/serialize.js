@@ -57,10 +57,13 @@ export function serialize(state, options = {}) {
 
   // ── Input ──────────────────────────────────────────────────────────────────
 
-  p.push('-i', inputPlaceholder)
-
-  // Logo overlay (second input)
-  if (s.logoPath) p.push('-i', s.logoPath)
+  if (Array.isArray(s.inputs) && s.inputs.length) {
+    for (const inp of s.inputs) p.push('-i', inp)
+  } else {
+    p.push('-i', inputPlaceholder)
+    // Logo overlay (second input)
+    if (s.logoPath) p.push('-i', s.logoPath)
+  }
 
   // ── Post-input flags ───────────────────────────────────────────────────────
 
@@ -71,7 +74,7 @@ export function serialize(state, options = {}) {
   if (Array.isArray(s.passthroughPostInput) && s.passthroughPostInput.length)
     p.push(...s.passthroughPostInput)
 
-  p.push(outputPlaceholder)
+  p.push(s.outputValue || outputPlaceholder)
   const command = p.join(' ')
 
   if (!withHints) return command
