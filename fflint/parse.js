@@ -11,8 +11,73 @@ import { normalizeSFrameSize } from './codec-data.js'
 
 // ─── Tokenize ─────────────────────────────────────────────────────────────────
 
+// Tokenize with layout preservation: returns { tokens, separators }.
+// `separators[i]` is the whitespace/continuation string between tokens[i] and tokens[i+1].
+// Shell line continuations (backslash + newline) are treated as whitespace separators.
+function tokenizeWithLayout(str) {
+  const tokens = []
+  const separators = []
+  let i = 0
+
+  // Skip leading whitespace / continuations
+  i = skipWs(str, i)
+
+  while (i < str.length) {
+    // Collect token
+    let token = ''
+    if (str[i] === '"') {
+      const end = str.indexOf('"', i + 1)
+      if (end !== -1) { token = str.slice(i, end + 1); i = end + 1 }
+      else { token = str.slice(i); i = str.length }
+    } else if (str[i] === "'") {
+      const end = str.indexOf("'", i + 1)
+      if (end !== -1) { token = str.slice(i, end + 1); i = end + 1 }
+      else { token = str.slice(i); i = str.length }
+    } else {
+      while (i < str.length && !isWsOrContinuation(str, i)) {
+        token += str[i]; i++
+      }
+    }
+    if (!token) break
+    tokens.push(token)
+
+    // Collect separator after this token (before the next one)
+    const sepStart = i
+    i = skipWs(str, i)
+    if (i < str.length) {
+      separators.push(str.slice(sepStart, i))
+    }
+  }
+
+  return { tokens, separators }
+}
+
+function isWsOrContinuation(str, i) {
+  const ch = str[i]
+  if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') return true
+  if (ch === '\\') {
+    const next = str[i + 1]
+    if (next === '\n') return true
+    if (next === '\r' && str[i + 2] === '\n') return true
+  }
+  return false
+}
+
+function skipWs(str, i) {
+  while (i < str.length) {
+    const ch = str[i]
+    if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') { i++; continue }
+    if (ch === '\\') {
+      if (str[i + 1] === '\n') { i += 2; continue }
+      if (str[i + 1] === '\r' && str[i + 2] === '\n') { i += 3; continue }
+    }
+    break
+  }
+  return i
+}
+
 function tokenize(str) {
-  return str.trim().match(/"[^"]*"|\S+/g) || []
+  return tokenizeWithLayout(str).tokens
 }
 
 function stripQuotes(s) {
@@ -86,10 +151,12 @@ function parseTokens(str) {
     _flagOrder: [],
   }
 
-  const tokens = tokenize(str)
+  const { tokens, separators } = tokenizeWithLayout(str)
   let i = 0
   let passedInput = false
   let inputCount = 0
+
+  raw._tokenLayout = { tokens: [...tokens], separators: [...separators] }
 
   while (i < tokens.length) {
     const t = tokens[i]
@@ -489,6 +556,10 @@ function toFflintState(s) {
   // Flag order metadata for order-preserving serialization
   if (Array.isArray(s._flagOrder) && s._flagOrder.length)
     f._flagOrder = s._flagOrder
+
+  // Token layout metadata for formatting-preserving serialization
+  if (s._tokenLayout)
+    f._tokenLayout = s._tokenLayout
 
   return f
 }

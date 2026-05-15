@@ -75,7 +75,7 @@ export function serialize(state, options = {}) {
     p.push(...s.passthroughPostInput)
 
   p.push(s.outputValue || outputPlaceholder)
-  const command = p.join(' ')
+  const command = joinTokens(p, s._tokenLayout)
 
   if (!withHints) return command
 
@@ -151,6 +151,58 @@ function emitOrdered(p, emitters, allowedFields, flagOrder) {
     if (tokens && tokens.length) p.push(...tokens)
     emitted.add(field)
   }
+}
+
+// ─── Token layout preservation ────────────────────────────────────────────────
+
+// Best-effort formatting preservation: walk the emitted token array and try to
+// match each token to the next occurrence in the original token stream.  When a
+// match is found the original separator *before* that token is reused; otherwise
+// a single space is used as fallback.
+function joinTokens(emitted, layout) {
+  if (!emitted || !emitted.length) return ''
+  if (!layout || !Array.isArray(layout.tokens) || !layout.tokens.length)
+    return emitted.join(' ')
+
+  const orig = layout.tokens
+  const seps = layout.separators
+  let searchFrom = 0
+  let result = emitted[0]
+
+  // Advance past the first matching original token (usually 'ffmpeg')
+  const firstMatch = indexOfToken(orig, emitted[0], searchFrom)
+  if (firstMatch !== -1) searchFrom = firstMatch + 1
+
+  for (let i = 1; i < emitted.length; i++) {
+    const idx = indexOfToken(orig, emitted[i], searchFrom)
+    if (idx !== -1 && idx > 0 && seps[idx - 1]) {
+      result += seps[idx - 1] + emitted[i]
+      searchFrom = idx + 1
+    } else {
+      // No match in original stream — use the "default" separator.
+      // If the layout has any multiline separators, keep the style consistent
+      // by reusing the most common separator; otherwise just use a space.
+      result += defaultSep(seps) + emitted[i]
+    }
+  }
+
+  return result
+}
+
+function indexOfToken(tokens, token, from) {
+  for (let i = from; i < tokens.length; i++) {
+    if (tokens[i] === token) return i
+  }
+  return -1
+}
+
+function defaultSep(seps) {
+  if (Array.isArray(seps)) {
+    for (const s of seps) {
+      if (s.includes('\\\n') || s.includes('\\\r\n')) return s
+    }
+  }
+  return ' '
 }
 
 // ─── Pre-input emitter map ────────────────────────────────────────────────────

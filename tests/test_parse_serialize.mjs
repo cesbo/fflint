@@ -916,6 +916,51 @@ console.log('\n\x1b[1m═══ Section: Round-trip — inputs/output preservati
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+console.log('\n\x1b[1m═══ Section: Multiline formatting preservation ═══\x1b[0m')
+// ═══════════════════════════════════════════════════════════════════════════════
+
+{
+  // Shell line-continuation round-trip: backslash + newline + indentation
+  const original = 'ffmpeg \\\n  -hwaccel cuda \\\n  -i input.ts \\\n  -c:v libx264 \\\n  -preset fast \\\n  -b:v 4M \\\n  -c:a aac \\\n  -f mpegts \\\n  out.ts'
+  const state = parse(original)
+
+  // _tokenLayout metadata is captured
+  assert('_tokenLayout exists', !!state._tokenLayout)
+  assert('_tokenLayout has separators', Array.isArray(state._tokenLayout?.separators))
+  assert('separators contain continuation', state._tokenLayout?.separators.some(s => s.includes('\\\n')))
+
+  // Round-trip preserves line breaks between tokens that stayed in place
+  const cmd = serialize(state)
+  assert('RT multiline: contains backslash-newline', cmd.includes('\\\n'))
+  assert('RT multiline: -preset fast present', cmd.includes('-preset fast'))
+  assert('RT multiline: out.ts present', cmd.endsWith('out.ts'))
+}
+
+{
+  // Windows-style CRLF continuations
+  const original = 'ffmpeg \\\r\n  -i input.ts \\\r\n  -c:v libx264 \\\r\n  out.mp4'
+  const state = parse(original)
+  const cmd = serialize(state)
+  assert('RT CRLF: contains continuation', cmd.includes('\\\r\n'))
+  assert('RT CRLF: out.mp4 present', cmd.endsWith('out.mp4'))
+}
+
+{
+  // Single-line input has no continuations — canonical join preserved
+  const original = 'ffmpeg -i ${i} -c:v copy -c:a copy -f mpegts ${o}'
+  const cmd = serialize(parse(original))
+  assert('single-line: no backslash-newline', !cmd.includes('\\\n'))
+  assert('single-line: spaces only', cmd === cmd.replace(/\n/g, ''))
+}
+
+{
+  // Form-created state (no _tokenLayout) still works with canonical join
+  const cmd = serialize({ videoCodec: 'copy', audioCodec: 'copy', outputFormat: 'mpegts' })
+  assert('no _tokenLayout: canonical output', !cmd.includes('\\\n'))
+  assert('no _tokenLayout: valid command', cmd.startsWith('ffmpeg'))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 console.log(`\n\x1b[1m═══ Results: ${pass}/${pass + fail} passed ═══\x1b[0m`)
 if (fail > 0) {
   console.log(`\x1b[31m${fail} test(s) FAILED\x1b[0m`)
