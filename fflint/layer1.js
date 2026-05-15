@@ -1,7 +1,8 @@
 // layer1.js
 import {
   CRF_RANGE, parseBitrate, parseFps,
-  VALID_INPUT_TYPES, VALID_VIDEO_CODECS, VALID_HWACCELS, VALID_PIX_FMTS,
+  VALID_INPUT_TYPES, VALID_VIDEO_CODECS, VALID_INPUT_DECODER_CODECS,
+  VALID_HWACCELS, VALID_PIX_FMTS,
   DEPRECATED_PIX_FMTS,
   VALID_FIELD_ORDERS, VALID_COLOR_PRIMARIES, VALID_COLOR_TRC, VALID_COLORSPACES,
   VALID_FPS_SYNC_MODES, VALID_BSF_VIDEO, VALID_AUDIO_CODECS, VALID_SAMPLE_RATES,
@@ -32,8 +33,9 @@ export function validateLayer1(s) {
     // ── Enum validators ──────────────────────────────────────────────────────
     ...validateEnum(s, 'inputType',           'l1_input_type',          '-i',                     VALID_INPUT_TYPES,            'Input type'),
     ...validateEnum(s, 'videoCodec',          'l1_video_codec',         '-c:v',                   VALID_VIDEO_CODECS,           'Video codec'),
-    ...validateEnum(s, 'hwaccel',             'l1_hwaccel',             '-hwaccel',               VALID_HWACCELS,               'HW acceleration'),
-    ...validateEnum(s, 'hwaccelOutputFormat', 'l1_hwaccel_output_fmt',  '-hwaccel_output_format', VALID_HWACCEL_OUTPUT_FORMATS, 'HW accel output format'),
+    ...validateEnum(s, 'inputDecoderCodec',   'l1_input_decoder_codec', '-c:v (input)',            VALID_INPUT_DECODER_CODECS,   'Input decoder codec'),
+    ...validateEnum(s, 'inputHwaccel',        'l1_input_hwaccel',       '-hwaccel',               VALID_HWACCELS,               'HW acceleration'),
+    ...validateEnum(s, 'inputHwaccelOutputFormat', 'l1_input_hwaccel_output_fmt', '-hwaccel_output_format', VALID_HWACCEL_OUTPUT_FORMATS, 'HW accel output format'),
     ...validateEnum(s, 'colorPrimaries',      'l1_color_primaries',     '-color_primaries',       VALID_COLOR_PRIMARIES,        'Color primaries'),
     ...validateEnum(s, 'colorTrc',            'l1_color_trc',           '-color_trc',             VALID_COLOR_TRC,              'Transfer characteristics'),
     ...validateEnum(s, 'colorspace',          'l1_colorspace',          '-colorspace',            VALID_COLORSPACES,            'Color space'),
@@ -658,10 +660,10 @@ function info(id, group, flag, message, hint) {
  * Valid values: 0 (weave/off), 1 (bob), 2 (adaptive).
  */
 export function validateNvdecDeint(s) {
-  if (s.nvdecDeint === undefined) return []
-  if (isTemplateVar(s.nvdecDeint)) return []
-  if (!VALID_NVDEC_DEINT.includes(s.nvdecDeint)) {
-    const { message, hint } = t('l1_nvdec_deint_invalid', { valid: VALID_NVDEC_DEINT.join(', '), val: s.nvdecDeint })
+  if (s.inputNvdecDeint === undefined) return []
+  if (isTemplateVar(s.inputNvdecDeint)) return []
+  if (!VALID_NVDEC_DEINT.includes(s.inputNvdecDeint)) {
+    const { message, hint } = t('l1_nvdec_deint_invalid', { valid: VALID_NVDEC_DEINT.join(', '), val: s.inputNvdecDeint })
     return [err('l1_nvdec_deint', 'l1_nvdec_deint', '-deint', message, hint)]
   }
   return []

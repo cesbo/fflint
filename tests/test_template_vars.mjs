@@ -178,28 +178,28 @@ console.log('\n═══ L2: Hardware acceleration template variables ═══'
 
 {
   // CPU codec + template var hwaccel — must not trigger cpu_hwaccel_set
-  const state = { videoCodec: 'libx264', hwaccel: '${hw}', bitrateMode: 'cbr', targetBitrate: '4M' }
+  const state = { videoCodec: 'libx264', inputHwaccel: '${hw}', bitrateMode: 'cbr', targetBitrate: '4M' }
   const results = validate(state)
   assert(!hasId(results, 'cpu_hwaccel_set'), 'libx264 + ${hw}: no cpu_hwaccel_set warning')
 }
 
 {
   // VAAPI codec + template var hwaccel — must not trigger vaapi_wrong_hwaccel
-  const state = { videoCodec: 'h264_vaapi', hwaccel: '${hw}', bitrateMode: 'cbr', targetBitrate: '4M' }
+  const state = { videoCodec: 'h264_vaapi', inputHwaccel: '${hw}', bitrateMode: 'cbr', targetBitrate: '4M' }
   const results = validate(state)
   assert(!hasId(results, 'vaapi_wrong_hwaccel'), 'h264_vaapi + ${hw}: no vaapi_wrong_hwaccel')
 }
 
 {
   // yadif_cuda filter + template var hwaccel — must not trigger yadif_cuda_no_hwaccel
-  const state = { videoCodec: 'h264_nvenc', hwaccel: '${hw}', deinterlaceFilter: 'yadif_cuda' }
+  const state = { videoCodec: 'h264_nvenc', inputHwaccel: '${hw}', deinterlaceFilter: 'yadif_cuda' }
   const results = validate(state)
   assert(!hasId(results, 'yadif_cuda_no_hwaccel'), 'yadif_cuda + ${hw}: no yadif_cuda_no_hwaccel')
 }
 
 {
   // cpu filter + template var hwaccelOutputFormat — must not trigger cpu_deinterlace_with_hwaccel_output
-  const state = { videoCodec: 'libx264', deinterlaceFilter: 'yadif', hwaccelOutputFormat: '${fmt}' }
+  const state = { videoCodec: 'libx264', deinterlaceFilter: 'yadif', inputHwaccelOutputFormat: '${fmt}' }
   const results = validate(state)
   assert(!hasId(results, 'cpu_deinterlace_with_hwaccel_output'), 'yadif + ${hwaccelOutputFormat}: no cpu_deinterlace_with_hwaccel_output')
 }

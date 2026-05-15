@@ -13,7 +13,7 @@ console.log(JSON.stringify(state, null, 2))
 
 // The returned state uses fflint schema field names:
 //   videoCodec, preset, profile, bitrateMode, targetBitrate,
-//   hwaccel, hwaccelOutputFormat, gop, etc.
+//   inputHwaccel, inputHwaccelOutputFormat, gop, etc.
 //
 // This object can be:
 //  1. Passed directly to validate() for validation

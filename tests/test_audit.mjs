@@ -168,7 +168,7 @@ console.log('\n═══ Audit fix: Preset error deduplication ═══')
 {
   const state = {
     videoCodec: 'h264_nvenc',
-    hwaccel: 'cuda',
+    inputHwaccel: 'cuda',
     preset: 'fast',
     bitrateMode: 'cbr',
     targetBitrate: '4M',

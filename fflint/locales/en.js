@@ -19,8 +19,9 @@ export default {
 
   l1_input_type:          enumMsg(),
   l1_video_codec:         enumMsg(),
-  l1_hwaccel:             enumMsg(),
-  l1_hwaccel_output_fmt:  enumMsg(),
+  l1_input_decoder_codec: enumMsg(),
+  l1_input_hwaccel:       enumMsg(),
+  l1_input_hwaccel_output_fmt: enumMsg(),
   l1_color_primaries:     enumMsg(),
   l1_color_trc:           enumMsg(),
   l1_colorspace:          enumMsg(),
@@ -463,7 +464,7 @@ export default {
 
   // Interlace / field order
   nvdec_deint_with_filter: {
-    message: ({ s }) => `-deint ${s.nvdecDeint} (NVDEC hardware deinterlace) and -filter:v ${s.deinterlaceFilter} are both active — the stream will be deinterlaced twice. Use one or the other: either NVDEC decoder deinterlace (-deint) for zero-copy GPU pipeline, or a filter (${s.deinterlaceFilter}) for more control. Remove one to fix the conflict`,
+    message: ({ s }) => `-deint ${s.inputNvdecDeint} (NVDEC hardware deinterlace) and -filter:v ${s.deinterlaceFilter} are both active — the stream will be deinterlaced twice. Use one or the other: either NVDEC decoder deinterlace (-deint) for zero-copy GPU pipeline, or a filter (${s.deinterlaceFilter}) for more control. Remove one to fix the conflict`,
   },
   nvdec_deint_no_hwaccel:      { message: '-deint requires -hwaccel cuda (NVDEC cuvid decoder pipeline) — without it the flag is ignored or causes an error' },
   nvdec_deint_no_output_fmt:   { message: '-deint with -hwaccel cuda but without -hwaccel_output_format cuda — decoded frames will be downloaded to system RAM after NVDEC deinterlacing. Set HW Accel Output to "cuda" to keep the full pipeline on the GPU' },
@@ -529,7 +530,7 @@ export default {
   // HW accel output format
   hwaccel_output_fmt_no_hwaccel:  { message: '-hwaccel_output_format requires -hwaccel to be set — frames cannot stay on the GPU without a hardware decoder' },
   hwaccel_output_fmt_mismatch: {
-    message: ({ s }) => `-hwaccel_output_format "${s.hwaccelOutputFormat}" does not match -hwaccel "${s.hwaccel}" — decoded frames will be silently downloaded to system RAM and re-uploaded, negating the GPU pipeline`,
+    message: ({ s }) => `-hwaccel_output_format "${s.inputHwaccelOutputFormat}" does not match -hwaccel "${s.inputHwaccel}" — decoded frames will be silently downloaded to system RAM and re-uploaded, negating the GPU pipeline`,
   },
   nvenc_cuda_missing_output_fmt: {
     message: ({ s }) => {
@@ -567,7 +568,7 @@ export default {
   bwdif_cuda_no_hwaccel:  { message: 'bwdif_cuda requires the decode pipeline on CUDA — set HW Accel to "cuda" and HW Accel Output to "cuda", otherwise FFmpeg cannot pass GPU frames to this filter' },
   scale_cuda_no_hwaccel:  { message: 'scale_cuda requires the decode pipeline on CUDA — set HW Accel to "cuda" and HW Accel Output to "cuda", otherwise the filter will receive CPU frames and FFmpeg will error' },
   cpu_deinterlace_with_hwaccel_output: {
-    message: ({ s }) => `CPU deinterlace filter "${s.deinterlaceFilter}" cannot process GPU frames — HW Accel Output is set to "${s.hwaccelOutputFormat}", which keeps decoded frames on the GPU. Either switch Deinterlace to "${s.deinterlaceFilter}_cuda" (GPU filter) or set HW Accel Output to "— None —" to route frames through system RAM`,
+    message: ({ s }) => `CPU deinterlace filter "${s.deinterlaceFilter}" cannot process GPU frames — HW Accel Output is set to "${s.inputHwaccelOutputFormat}", which keeps decoded frames on the GPU. Either switch Deinterlace to "${s.deinterlaceFilter}_cuda" (GPU filter) or set HW Accel Output to "— None —" to route frames through system RAM`,
   },
   cuda_filter_no_output_fmt: {
     message: ({ s }) => `Using CUDA filter "${s.deinterlaceFilter || s.scaleFilter}" with HW Accel "cuda" but HW Accel Output is not set to "cuda" — decoded frames will move to RAM before the filter. Set HW Accel Output to "cuda" to keep frames on GPU throughout the pipeline`,
@@ -713,8 +714,8 @@ export default {
   prefer_vf_scale_with_hwaccel: {
     message: ({ s }) => {
       const map = { cuda: 'scale_cuda', vaapi: 'scale_vaapi', qsv: 'scale_qsv' }
-      const suggested = map[s.hwaccel] || `scale_${s.hwaccel}`
-      return `Using -s with -hwaccel ${s.hwaccel} forces a CPU rescale (frames are downloaded from GPU). Prefer -vf ${suggested}=W:H to keep the frame on the GPU`
+      const suggested = map[s.inputHwaccel] || `scale_${s.inputHwaccel}`
+      return `Using -s with -hwaccel ${s.inputHwaccel} forces a CPU rescale (frames are downloaded from GPU). Prefer -vf ${suggested}=W:H to keep the frame on the GPU`
     },
   },
 

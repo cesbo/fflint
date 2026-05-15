@@ -7,8 +7,8 @@ import { serialize } from '../fflint/serialize.js'
 const state = {
   inputType:          'udp',
   videoCodec:         'h264_nvenc',
-  hwaccel:            'cuda',
-  hwaccelOutputFormat:'cuda',
+  inputHwaccel:            'cuda',
+  inputHwaccelOutputFormat:'cuda',
   preset:             'p4',
   profile:            'main',
   bitrateMode:        'cbr',

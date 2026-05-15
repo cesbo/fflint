@@ -92,13 +92,13 @@ export const rules = [
   {
     id: 'nvenc_no_hwaccel', group: 'hwaccel_mismatch', layer: 2,
     severity: 'error', flag: '-hwaccel',
-    check: (s) => NVENC_CODECS.includes(s.videoCodec) && s.hwaccel !== undefined && !isTemplateVar(s.hwaccel) && s.hwaccel !== 'cuda',
+    check: (s) => NVENC_CODECS.includes(s.videoCodec) && s.inputHwaccel !== undefined && !isTemplateVar(s.inputHwaccel) && s.inputHwaccel !== 'cuda',
     message: 'NVENC codec requires -hwaccel cuda — without it the decode pipeline runs on CPU, negating the GPU advantage. Set HW Accel to "cuda"',
   },
   {
     id: 'vaapi_wrong_hwaccel', group: 'hwaccel_mismatch', layer: 2,
     severity: 'warning', flag: '-hwaccel',
-    check: (s) => VAAPI_CODECS.includes(s.videoCodec) && s.hwaccel !== undefined && !isTemplateVar(s.hwaccel) && s.hwaccel !== 'vaapi',
+    check: (s) => VAAPI_CODECS.includes(s.videoCodec) && s.inputHwaccel !== undefined && !isTemplateVar(s.inputHwaccel) && s.inputHwaccel !== 'vaapi',
     message: 'VAAPI codec requires -hwaccel vaapi',
   },
   {
@@ -116,7 +116,7 @@ export const rules = [
   {
     id: 'cpu_hwaccel_set', group: 'hwaccel_mismatch', layer: 2,
     severity: 'warning', flag: '-hwaccel',
-    check: (s) => CPU_CODECS.includes(s.videoCodec) && s.hwaccel && !isTemplateVar(s.hwaccel) && s.hwaccel !== 'none',
+    check: (s) => CPU_CODECS.includes(s.videoCodec) && s.inputHwaccel && !isTemplateVar(s.inputHwaccel) && s.inputHwaccel !== 'none',
     message: 'Hardware acceleration has no effect on CPU codecs',
   },
   {
@@ -179,32 +179,32 @@ export const rules = [
   {
     id: 'nvdec_deint_with_filter', group: 'interlace', layer: 2,
     severity: 'error', flag: '-deint',
-    check: (s) => s.nvdecDeint !== undefined && s.nvdecDeint > 0 && !!s.deinterlaceFilter,
-    message: (s) => `-deint ${s.nvdecDeint} (NVDEC hardware deinterlace) and -filter:v ${s.deinterlaceFilter} are both active — the stream will be deinterlaced twice. Use one or the other: either NVDEC decoder deinterlace (-deint) for zero-copy GPU pipeline, or a filter (${s.deinterlaceFilter}) for more control. Remove one to fix the conflict`,
+    check: (s) => s.inputNvdecDeint !== undefined && s.inputNvdecDeint > 0 && !!s.deinterlaceFilter,
+    message: (s) => `-deint ${s.inputNvdecDeint} (NVDEC hardware deinterlace) and -filter:v ${s.deinterlaceFilter} are both active — the stream will be deinterlaced twice. Use one or the other: either NVDEC decoder deinterlace (-deint) for zero-copy GPU pipeline, or a filter (${s.deinterlaceFilter}) for more control. Remove one to fix the conflict`,
   },
   {
     id: 'nvdec_deint_no_hwaccel', group: 'nvdec_deint', layer: 2,
     severity: 'error', flag: '-deint',
-    check: (s) => s.nvdecDeint !== undefined && s.nvdecDeint > 0 && s.hwaccel !== 'cuda',
+    check: (s) => s.inputNvdecDeint !== undefined && s.inputNvdecDeint > 0 && s.inputHwaccel !== 'cuda',
     message: '-deint requires -hwaccel cuda (NVDEC cuvid decoder pipeline) — without it the flag is ignored or causes an error',
   },
   {
     id: 'nvdec_deint_no_output_fmt', group: 'nvdec_deint', layer: 2,
     severity: 'warning', flag: '-deint',
-    check: (s) => s.nvdecDeint !== undefined && s.nvdecDeint > 0 && s.hwaccel === 'cuda' && s.hwaccelOutputFormat !== 'cuda',
+    check: (s) => s.inputNvdecDeint !== undefined && s.inputNvdecDeint > 0 && s.inputHwaccel === 'cuda' && s.inputHwaccelOutputFormat !== 'cuda',
     message: '-deint with -hwaccel cuda but without -hwaccel_output_format cuda — decoded frames will be downloaded to system RAM after NVDEC deinterlacing. Set HW Accel Output to "cuda" to keep the full pipeline on the GPU',
   },
   {
     id: 'nvdec_deint_zero_redundant', group: 'nvdec_deint', layer: 2,
     severity: 'info', flag: '-deint',
-    check: (s) => s.nvdecDeint === 0,
+    check: (s) => s.inputNvdecDeint === 0,
     message: '-deint 0 (weave) is the default — this flag is redundant and can be removed',
   },
 
   {
     id: 'field_order_while_deinterlacing', group: 'interlace', layer: 2,
     severity: 'warning', flag: '-field_order',
-    check: (s) => (!!s.deinterlaceFilter || (s.nvdecDeint !== undefined && s.nvdecDeint > 0)) && s.fieldOrder && s.fieldOrder !== 'progressive',
+    check: (s) => (!!s.deinterlaceFilter || (s.inputNvdecDeint !== undefined && s.inputNvdecDeint > 0)) && s.fieldOrder && s.fieldOrder !== 'progressive',
     message: 'Deinterlace removes interlacing — a non-progressive field order tag is contradictory',
   },
   {
@@ -508,27 +508,27 @@ export const rules = [
   {
     id: 'hwaccel_output_fmt_no_hwaccel', group: 'hwaccel_output_fmt', layer: 2,
     severity: 'error', flag: '-hwaccel_output_format',
-    check: (s) => !!s.hwaccelOutputFormat && s.hwaccelOutputFormat !== 'none' && !s.hwaccel,
+    check: (s) => !!s.inputHwaccelOutputFormat && s.inputHwaccelOutputFormat !== 'none' && !s.inputHwaccel,
     message: '-hwaccel_output_format requires -hwaccel to be set — frames cannot stay on the GPU without a hardware decoder',
   },
   {
     id: 'hwaccel_output_fmt_mismatch', group: 'hwaccel_output_fmt', layer: 2,
     severity: 'error', flag: '-hwaccel_output_format',
     check: (s) => {
-      if (!s.hwaccelOutputFormat || s.hwaccelOutputFormat === 'none') return false
-      if (isTemplateVar(s.hwaccelOutputFormat)) return false
-      if (!s.hwaccel || s.hwaccel === 'none') return false
-      if (isTemplateVar(s.hwaccel)) return false
+      if (!s.inputHwaccelOutputFormat || s.inputHwaccelOutputFormat === 'none') return false
+      if (isTemplateVar(s.inputHwaccelOutputFormat)) return false
+      if (!s.inputHwaccel || s.inputHwaccel === 'none') return false
+      if (isTemplateVar(s.inputHwaccel)) return false
       const expected = { cuda: 'cuda', vaapi: 'vaapi', qsv: 'qsv' }
-      const exp = expected[s.hwaccel]
-      return !!exp && s.hwaccelOutputFormat !== exp
+      const exp = expected[s.inputHwaccel]
+      return !!exp && s.inputHwaccelOutputFormat !== exp
     },
-    message: (s) => `-hwaccel_output_format "${s.hwaccelOutputFormat}" does not match -hwaccel "${s.hwaccel}" — decoded frames will be silently downloaded to system RAM and re-uploaded, negating the GPU pipeline`,
+    message: (s) => `-hwaccel_output_format "${s.inputHwaccelOutputFormat}" does not match -hwaccel "${s.inputHwaccel}" — decoded frames will be silently downloaded to system RAM and re-uploaded, negating the GPU pipeline`,
   },
   {
     id: 'nvenc_cuda_missing_output_fmt', group: 'hwaccel_output_fmt', layer: 2,
     severity: 'info', flag: '-hwaccel_output_format',
-    check: (s) => NVENC_CODECS.includes(s.videoCodec) && s.hwaccel === 'cuda' && !s.hwaccelOutputFormat,
+    check: (s) => NVENC_CODECS.includes(s.videoCodec) && s.inputHwaccel === 'cuda' && !s.inputHwaccelOutputFormat,
     message: (s) => {
       const isCpuFilter = (v) => v && !v.endsWith('_cuda') && !v.endsWith('_vaapi') && !v.endsWith('_qsv');
       const hasCpuDeinterlace = isCpuFilter(s.deinterlaceFilter);
@@ -556,7 +556,7 @@ export const rules = [
   {
     id: 'gpu_index_no_hwaccel', group: 'gpu_index', layer: 2,
     severity: 'warning', flag: '-gpu',
-    check: (s) => s.gpuIndex !== undefined && !isTemplateVar(s.gpuIndex) && s.gpuIndex >= 0 && (!s.hwaccel || s.hwaccel === 'none'),
+    check: (s) => s.gpuIndex !== undefined && !isTemplateVar(s.gpuIndex) && s.gpuIndex >= 0 && (!s.inputHwaccel || s.inputHwaccel === 'none'),
     message: (s) => `-gpu ${s.gpuIndex} selects the NVENC encode device but -hwaccel is not set — the decoder will still use CPU. Add -hwaccel cuda to route the full pipeline through GPU ${s.gpuIndex}`,
   },
 
@@ -580,19 +580,19 @@ export const rules = [
   {
     id: 'yadif_cuda_no_hwaccel', group: 'cuda_filter_hwaccel', layer: 2,
     severity: 'error', flag: '-filter:v',
-    check: (s) => s.deinterlaceFilter === 'yadif_cuda' && !isTemplateVar(s.hwaccel) && s.hwaccel !== 'cuda',
+    check: (s) => s.deinterlaceFilter === 'yadif_cuda' && !isTemplateVar(s.inputHwaccel) && s.inputHwaccel !== 'cuda',
     message: 'yadif_cuda requires the decode pipeline on CUDA — set HW Accel to "cuda" and HW Accel Output to "cuda", otherwise FFmpeg cannot pass GPU frames to this filter',
   },
   {
     id: 'bwdif_cuda_no_hwaccel', group: 'cuda_filter_hwaccel', layer: 2,
     severity: 'error', flag: '-filter:v',
-    check: (s) => s.deinterlaceFilter === 'bwdif_cuda' && !isTemplateVar(s.hwaccel) && s.hwaccel !== 'cuda',
+    check: (s) => s.deinterlaceFilter === 'bwdif_cuda' && !isTemplateVar(s.inputHwaccel) && s.inputHwaccel !== 'cuda',
     message: 'bwdif_cuda requires the decode pipeline on CUDA — set HW Accel to "cuda" and HW Accel Output to "cuda", otherwise FFmpeg cannot pass GPU frames to this filter',
   },
   {
     id: 'scale_cuda_no_hwaccel', group: 'cuda_filter_hwaccel', layer: 2,
     severity: 'error', flag: '-filter:v',
-    check: (s) => s.scaleFilter === 'scale_cuda' && !isTemplateVar(s.hwaccel) && s.hwaccel !== 'cuda',
+    check: (s) => s.scaleFilter === 'scale_cuda' && !isTemplateVar(s.inputHwaccel) && s.inputHwaccel !== 'cuda',
     message: 'scale_cuda requires the decode pipeline on CUDA — set HW Accel to "cuda" and HW Accel Output to "cuda", otherwise the filter will receive CPU frames and FFmpeg will error',
   },
   {
@@ -600,16 +600,16 @@ export const rules = [
     severity: 'error', flag: '-filter:v',
     check: (s) => {
       const isCpuFilter = s.deinterlaceFilter === 'yadif' || s.deinterlaceFilter === 'bwdif';
-      return isCpuFilter && s.hwaccelOutputFormat && !isTemplateVar(s.hwaccelOutputFormat) && s.hwaccelOutputFormat !== 'none';
+      return isCpuFilter && s.inputHwaccelOutputFormat && !isTemplateVar(s.inputHwaccelOutputFormat) && s.inputHwaccelOutputFormat !== 'none';
     },
-    message: (s) => `CPU deinterlace filter "${s.deinterlaceFilter}" cannot process GPU frames — HW Accel Output is set to "${s.hwaccelOutputFormat}", which keeps decoded frames on the GPU. Either switch Deinterlace to "${s.deinterlaceFilter}_cuda" (GPU filter) or set HW Accel Output to "— None —" to route frames through system RAM`,
+    message: (s) => `CPU deinterlace filter "${s.deinterlaceFilter}" cannot process GPU frames — HW Accel Output is set to "${s.inputHwaccelOutputFormat}", which keeps decoded frames on the GPU. Either switch Deinterlace to "${s.deinterlaceFilter}_cuda" (GPU filter) or set HW Accel Output to "— None —" to route frames through system RAM`,
   },
   {
     id: 'cuda_filter_no_output_fmt', group: 'cuda_filter_hwaccel', layer: 2,
     severity: 'warning', flag: '-hwaccel_output_format',
     check: (s) => {
       const hasCudaFilter = s.deinterlaceFilter === 'yadif_cuda' || s.deinterlaceFilter === 'bwdif_cuda' || s.scaleFilter === 'scale_cuda'
-      return hasCudaFilter && s.hwaccel === 'cuda' && !isTemplateVar(s.hwaccelOutputFormat) && s.hwaccelOutputFormat !== 'cuda'
+      return hasCudaFilter && s.inputHwaccel === 'cuda' && !isTemplateVar(s.inputHwaccelOutputFormat) && s.inputHwaccelOutputFormat !== 'cuda'
     },
     message: (s) => `Using CUDA filter "${s.deinterlaceFilter || s.scaleFilter}" with HW Accel "cuda" but HW Accel Output is not set to "cuda" — decoded frames will move to RAM before the filter. Set HW Accel Output to "cuda" to keep frames on GPU throughout the pipeline`,
   },
@@ -625,7 +625,7 @@ export const rules = [
   {
     id: 'vaapi_filter_no_hwaccel', group: 'vaapi_filter_hwaccel', layer: 2,
     severity: 'error', flag: '-filter:v',
-    check: (s) => s.scaleFilter === 'scale_vaapi' && !isTemplateVar(s.hwaccel) && s.hwaccel !== 'vaapi',
+    check: (s) => s.scaleFilter === 'scale_vaapi' && !isTemplateVar(s.inputHwaccel) && s.inputHwaccel !== 'vaapi',
     message: 'scale_vaapi requires -hwaccel vaapi — without it FFmpeg cannot pass GPU surfaces to the filter and will error',
   },
   {
@@ -633,7 +633,7 @@ export const rules = [
     severity: 'info', flag: '-filter:v',
     check: (s) => {
       const isCpuFilter = s.deinterlaceFilter === 'yadif' || s.deinterlaceFilter === 'bwdif';
-      return isCpuFilter && VAAPI_CODECS.includes(s.videoCodec) && s.hwaccel === 'vaapi';
+      return isCpuFilter && VAAPI_CODECS.includes(s.videoCodec) && s.inputHwaccel === 'vaapi';
     },
     message: (s) => `CPU deinterlace filter "${s.deinterlaceFilter}" with VAAPI encoder — frames will be downloaded to RAM for filtering, then re-uploaded to GPU for encoding. This works but adds latency. For a full GPU pipeline, use "deinterlace_vaapi" filter and set HW Accel Output to "vaapi"`,
   },
@@ -1115,15 +1115,15 @@ export const rules = [
     id: 'prefer_vf_scale_with_hwaccel', group: 'prefer_vf_scale_with_hwaccel', layer: 3,
     severity: 'info', flag: '-s',
     check: (s) => {
-      if (!s.hwaccel) return false
+      if (!s.inputHwaccel) return false
       if (!resolveSFrameSize(s)) return false
       if (hasHwScale(s.vfAtoms)) return false
       return true
     },
     message: (s) => {
       const map = { cuda: 'scale_cuda', vaapi: 'scale_vaapi', qsv: 'scale_qsv' }
-      const suggested = map[s.hwaccel] || `scale_${s.hwaccel}`
-      return `Using -s with -hwaccel ${s.hwaccel} forces a CPU rescale (frames are downloaded from GPU). Prefer -vf ${suggested}=W:H to keep the frame on the GPU`
+      const suggested = map[s.inputHwaccel] || `scale_${s.inputHwaccel}`
+      return `Using -s with -hwaccel ${s.inputHwaccel} forces a CPU rescale (frames are downloaded from GPU). Prefer -vf ${suggested}=W:H to keep the frame on the GPU`
     },
   },
 

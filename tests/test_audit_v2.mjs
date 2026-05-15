@@ -163,8 +163,8 @@ console.log('\n═══ Case 11: ${i} → h264_vaapi (Intel GPU) ═══')
   )
   assert(!hasMsg(raw, '-hwaccel_device'), '-hwaccel_device not flagged')
   assert(!hasMsg(raw, '-vf'), '-vf not flagged')
-  assert(state.hwaccel === 'vaapi', 'vaapi hwaccel parsed')
-  assert(state.hwaccelOutputFormat === 'vaapi', 'vaapi output format parsed')
+  assert(state.inputHwaccel === 'vaapi', 'vaapi hwaccel parsed')
+  assert(state.inputHwaccelOutputFormat === 'vaapi', 'vaapi output format parsed')
   assert(!hasId(all, 'file_input_no_re'), 'no -re false positive')
   assert(!hasId(all, 'cbr_no_maxrate'), 'no CBR false positive')
 }
@@ -240,7 +240,7 @@ console.log('\n═══ Case 17: ${i} → full GPU pipeline yadif_cuda + scale_
   assert(!hasMsg(raw, '-vf'), '-vf not flagged')
   assert(!hasMsg(raw, 'Unrecognized'), 'no unrecognized flags')
   assert(state.deinterlaceFilter === 'yadif_cuda', 'yadif_cuda extracted from -vf')
-  assert(state.hwaccelOutputFormat === 'cuda', 'hwaccel output format parsed')
+  assert(state.inputHwaccelOutputFormat === 'cuda', 'hwaccel output format parsed')
   assert(!hasId(all, 'file_input_no_re'), 'no -re false positive')
   assert(!hasId(all, 'cbr_no_maxrate'), 'no CBR false positive')
   assert(!hasSev(all, 'error'), 'no errors')
@@ -250,7 +250,7 @@ console.log('\n═══ Case 17: ${i} → full GPU pipeline yadif_cuda + scale_
 console.log('\n═══ Bonus: Preset deduplication still works ═══')
 {
   const results = validate({
-    videoCodec: 'h264_nvenc', hwaccel: 'cuda', preset: 'fast',
+    videoCodec: 'h264_nvenc', inputHwaccel: 'cuda', preset: 'fast',
     bitrateMode: 'cbr', targetBitrate: '4M', maxrate: '4M', bufsize: '8M',
     outputFormat: 'mpegts',
   })
@@ -263,7 +263,7 @@ console.log('\n═══ Bonus: serialize() with tier + lookahead round-trip ═
 {
   const { serialize } = await import('../fflint/serialize.js')
   const cmd = serialize({
-    videoCodec: 'hevc_nvenc', hwaccel: 'cuda', preset: 'p5',
+    videoCodec: 'hevc_nvenc', inputHwaccel: 'cuda', preset: 'p5',
     profile: 'main', tier: 'high', lookahead: 32,
     bitrateMode: 'vbr', targetBitrate: '6M', maxrate: '8M', bufsize: '12M',
     audioCodec: 'aac', audioBitrate: '128k', outputFormat: 'mpegts',

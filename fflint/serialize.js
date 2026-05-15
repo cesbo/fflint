@@ -40,12 +40,12 @@ export function serialize(state, options = {}) {
   // ── Pre-input options (must stay before -i for FFmpeg correctness) ─────────
 
   const PRE_INPUT_FIELDS = new Set([
-    'hwaccel', 'hwaccelOutputFormat', 'nvdecDeint', 'gpuIndex',
+    'inputHwaccel', 'inputHwaccelOutputFormat', 'inputNvdecDeint', 'inputDecoderCodec', 'gpuIndex',
     're', 'streamLoop', 'fflags', 'useWallclock', 'analyzeDuration',
     'probeSize', 'timeout', 'threadQueueSize', 'reconnect', 'reconnectStreamed', 'listen',
   ])
 
-  const preInputEmitters = buildPreInputEmitters(s, isEncoding, isGpuCodec, isNvenc)
+  const preInputEmitters = buildPreInputEmitters(s)
   const postInputEmitters = buildPostInputEmitters(s, isEncoding, isGpuCodec, isNvenc)
 
   // Emit pre-input flags: respect _flagOrder for ordering within the pre-input zone
@@ -207,20 +207,22 @@ function defaultSep(seps) {
 
 // ─── Pre-input emitter map ────────────────────────────────────────────────────
 
-function buildPreInputEmitters(s, isEncoding, isGpuCodec, isNvenc) {
+function buildPreInputEmitters(s) {
   const m = new Map()
 
-  m.set('hwaccel', () =>
-    s.hwaccel && s.hwaccel !== 'none' && isGpuCodec && isEncoding
-      ? ['-hwaccel', s.hwaccel] : [])
-  m.set('hwaccelOutputFormat', () =>
-    s.hwaccelOutputFormat && s.hwaccelOutputFormat !== 'none' && isGpuCodec && isEncoding
-      ? ['-hwaccel_output_format', s.hwaccelOutputFormat] : [])
-  m.set('nvdecDeint', () =>
-    s.nvdecDeint !== undefined && s.nvdecDeint !== '' && isNvenc && isEncoding
-      ? ['-deint', String(s.nvdecDeint)] : [])
+  m.set('inputHwaccel', () =>
+    s.inputHwaccel && s.inputHwaccel !== 'none'
+      ? ['-hwaccel', s.inputHwaccel] : [])
+  m.set('inputHwaccelOutputFormat', () =>
+    s.inputHwaccelOutputFormat && s.inputHwaccelOutputFormat !== 'none'
+      ? ['-hwaccel_output_format', s.inputHwaccelOutputFormat] : [])
+  m.set('inputNvdecDeint', () =>
+    s.inputNvdecDeint !== undefined && s.inputNvdecDeint !== ''
+      ? ['-deint', String(s.inputNvdecDeint)] : [])
+  m.set('inputDecoderCodec', () =>
+    s.inputDecoderCodec ? ['-c:v', s.inputDecoderCodec] : [])
   m.set('gpuIndex', () =>
-    s.gpuIndex !== undefined && s.gpuIndex !== '' && isNvenc
+    s.gpuIndex !== undefined && s.gpuIndex !== ''
       ? ['-gpu', String(s.gpuIndex)] : [])
   m.set('re', () => s.re ? ['-re'] : [])
   m.set('streamLoop', () =>

@@ -123,12 +123,12 @@ function parseTokens(str) {
   const raw = {
     re: false, loop: false, wallclock: false, fflags: [], maxDelay: '', timeout: '', threadQueueSize: '',
     analyzeduration: '', probesize: '', copyts: false,
-    videoEnabled: true, videoCodec: '', hwaccel: '', hwaccelOutputFormat: '',
-    inputDecoderCodec: '', gpuIndex: '',
+    videoEnabled: true, videoCodec: '',
+    inputDecoderCodec: '', inputHwaccel: '', inputHwaccelOutputFormat: '', inputNvdecDeint: '', gpuIndex: '',
     preset: '', vprofile: '', frameSize: 'original', customFrameSize: '',
     fps: 'original', customFps: '',
     gop: '', bitrateMode: '', bitrate: '', maxrate: '', bufsize: '',
-    deinterlaceFilter: '', nvdecDeint: '', forcedIdr: false,
+    deinterlaceFilter: '', forcedIdr: false,
     vfChain: '', vfAtoms: [],
     pixFmt: '', level: '', scThreshold: '', bframes: '', refs: '', bsfVideo: 'none',
     fieldOrder: '', colorPrimaries: '', colorTrc: '', colorspace: '',
@@ -166,9 +166,9 @@ function parseTokens(str) {
       case '-hide_banner': break
       case '-re': raw.re = true; raw._flagOrder.push('re'); break
       case '-stream_loop': i++; raw.loop = true; raw._flagOrder.push('streamLoop'); break
-      case '-hwaccel': i++; raw.hwaccel = tokens[i] || ''; raw._flagOrder.push('hwaccel'); break
-      case '-hwaccel_output_format': i++; raw.hwaccelOutputFormat = tokens[i] || ''; raw._flagOrder.push('hwaccelOutputFormat'); break
-      case '-deint': i++; raw.nvdecDeint = tokens[i] || ''; raw._flagOrder.push('nvdecDeint'); break
+      case '-hwaccel': i++; raw.inputHwaccel = tokens[i] || ''; raw._flagOrder.push('inputHwaccel'); break
+      case '-hwaccel_output_format': i++; raw.inputHwaccelOutputFormat = tokens[i] || ''; raw._flagOrder.push('inputHwaccelOutputFormat'); break
+      case '-deint': i++; raw.inputNvdecDeint = tokens[i] || ''; raw._flagOrder.push('inputNvdecDeint'); break
       case '-gpu': i++; raw.gpuIndex = tokens[i] || ''; raw._flagOrder.push('gpuIndex'); break
       case '-i': i++; {
         let inp = tokens[i] || ''
@@ -425,13 +425,20 @@ function toFflintState(s) {
   if (s.reconnectStreamed) f.reconnectStreamed = true
   if (Array.isArray(s.maps) && s.maps.length) f.maps = s.maps
 
+  // Decode-side pre-input state (independent of output encoder)
+  if (s.inputDecoderCodec) f.inputDecoderCodec = s.inputDecoderCodec
+  if (s.inputHwaccel) f.inputHwaccel = s.inputHwaccel
+  if (s.inputHwaccelOutputFormat) f.inputHwaccelOutputFormat = s.inputHwaccelOutputFormat
+  if (s.inputNvdecDeint !== '' && s.inputNvdecDeint !== undefined) {
+    const n = parseInt(s.inputNvdecDeint, 10)
+    f.inputNvdecDeint = isNaN(n) ? s.inputNvdecDeint : n
+  }
+
   if (!s.videoEnabled) {
     f.videoCodec = 'disabled'
   } else if (s.videoCodec) {
     f.videoCodec = s.videoCodec
     if (s.videoCodec !== 'copy' && s.videoCodec !== 'disabled') {
-      if (s.hwaccel) f.hwaccel = s.hwaccel
-      if (s.hwaccelOutputFormat) f.hwaccelOutputFormat = s.hwaccelOutputFormat
       if (s.gpuIndex !== '' && s.gpuIndex !== undefined) { const n = parseInt(s.gpuIndex, 10); f.gpuIndex = isNaN(n) ? s.gpuIndex : n }
       if (s.preset)   f.preset  = s.preset
       if (s.tune)     f.tune    = s.tune
@@ -445,7 +452,6 @@ function toFflintState(s) {
       if (s.gop) { const n = parseInt(s.gop, 10); f.gop = isNaN(n) ? s.gop : n }
       if (s.keyintMin) { const n = parseInt(s.keyintMin, 10); f.keyintMin = isNaN(n) ? s.keyintMin : n }
       if (s.deinterlaceFilter) f.deinterlaceFilter = s.deinterlaceFilter
-      if (s.nvdecDeint !== '' && s.nvdecDeint !== undefined) { const n = parseInt(s.nvdecDeint, 10); f.nvdecDeint = isNaN(n) ? s.nvdecDeint : n }
       if (s.bitrateMode === 'crf') { const crf = parseFloat(s.bitrate); if (!isNaN(crf)) f.crfValue = crf }
       else { if (s.bitrate) f.targetBitrate = s.bitrate }
       if (s.maxrate) f.maxrate = s.maxrate

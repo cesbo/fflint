@@ -110,8 +110,8 @@ printResults(
   'A3 · NVENC H.264 CBR → MPEG-TS (full CUDA pipeline)',
   {
     inputType:          'udp',
-    hwaccel:            'cuda',
-    hwaccelOutputFormat:'cuda',
+    inputHwaccel:            'cuda',
+    inputHwaccelOutputFormat:'cuda',
     videoCodec:         'h264_nvenc',
     preset:             'p4',
     bitrateMode:        'cbr',
@@ -220,8 +220,8 @@ printResults(
   'A7 · NVENC H.264 VBR → MPEG-TS',
   {
     inputType:          'udp',
-    hwaccel:            'cuda',
-    hwaccelOutputFormat:'cuda',
+    inputHwaccel:            'cuda',
+    inputHwaccelOutputFormat:'cuda',
     videoCodec:         'h264_nvenc',
     preset:             'hq',
     bitrateMode:        'vbr',
@@ -296,7 +296,7 @@ printResults(
   'A10 · h264_vaapi CBR → MPEG-TS',
   {
     inputType:     'udp',
-    hwaccel:       'vaapi',
+    inputHwaccel:       'vaapi',
     videoCodec:    'h264_vaapi',
     bitrateMode:   'cbr',
     targetBitrate: '4000k',
@@ -423,7 +423,7 @@ printResults(
   'B2 · NVENC codec with CPU preset "medium" (wrong preset family)',
   {
     inputType:     'udp',
-    hwaccel:       'cuda',
+    inputHwaccel:       'cuda',
     videoCodec:    'h264_nvenc',
     preset:        'medium',  // ← WRONG: CPU preset, not NVENC (p1-p7, hq, etc.)
     bitrateMode:   'cbr',
@@ -549,7 +549,7 @@ printResults(
   {
     inputType:     'udp',
     videoCodec:    'h264_nvenc',
-    hwaccel:       'none',      // ← WRONG: should be 'cuda' for GPU pipeline
+    inputHwaccel:       'none',      // ← WRONG: should be 'cuda' for GPU pipeline
     preset:        'p4',
     bitrateMode:   'cbr',
     targetBitrate: '4000k',
@@ -650,7 +650,7 @@ printResults(
   'B14 · VAAPI encoder with yuv444p pixel format (unsupported surface)',
   {
     inputType:     'udp',
-    hwaccel:       'vaapi',
+    inputHwaccel:       'vaapi',
     videoCodec:    'h264_vaapi',
     bitrateMode:   'cbr',
     targetBitrate: '4000k',
