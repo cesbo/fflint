@@ -109,4 +109,24 @@ check('unknown flag message mentions not validated', customHint?.message.include
 const out6 = serialize(parse(cmd6))
 check('default returns string, not object', typeof out6, 'string')
 
+console.log('\n═══ Multiline formatting + flag order ═══')
+
+// Multiline command with pre-input flags placed after -i — formatting preserved
+// for unmoved tokens, but moved flags get canonical spacing
+const cmd7 = 'ffmpeg \\\n  -i ${i} \\\n  -c:v h264_nvenc \\\n  -gpu 0 \\\n  -hwaccel cuda \\\n  -preset fast \\\n  -f mpegts \\\n  ${o}'
+const out7 = serialize(parse(cmd7))
+check('multiline + migration: -hwaccel before -i', out7.indexOf('-hwaccel') < out7.indexOf('-i'), true)
+check('multiline + migration: -gpu before -i', out7.indexOf('-gpu') < out7.indexOf('-i'), true)
+check('multiline + migration: output still valid', out7.endsWith('${o}'), true)
+check('multiline + migration: contains continuation chars', out7.includes('\\\n'), true)
+
+// Canonical order (form-created, no layout) is unaffected
+const out8 = serialize({
+  videoCodec: 'libx264', preset: 'fast',
+  bitrateMode: 'cbr', targetBitrate: '2M',
+  audioCodec: 'aac', outputFormat: 'mpegts',
+})
+check('canonical form: no backslash-newline', !out8.includes('\\\n'), true)
+check('canonical form: single-line', !out8.includes('\n'), true)
+
 console.log(`\n═══ Results: ${passed}/${total} passed ═══\n`)

@@ -23,8 +23,8 @@ for (const r of results) {
 console.log()
 
 // ── Step 3: Fix issues (e.g. add missing hwaccel for NVENC) ──────────────────
-state.hwaccel = 'cuda'
-state.hwaccelOutputFormat = 'cuda'
+state.inputHwaccel = 'cuda'
+state.inputHwaccelOutputFormat = 'cuda'
 
 // ── Step 4: Re-validate ──────────────────────────────────────────────────────
 const fixed = validate(state)

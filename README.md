@@ -112,10 +112,10 @@ fflint is a set of ES modules. No build step, no bundler, no dependencies.
 ```bash
 # In the fflint directory
 npm pack
-# → cesbo-fflint-1.3.1.tgz
+# → cesbo-fflint-2.0.0.tgz
 
 # In your project
-npm install ../fflint/cesbo-fflint-1.3.1.tgz
+npm install ../fflint/cesbo-fflint-2.0.0.tgz
 ```
 
 ```js

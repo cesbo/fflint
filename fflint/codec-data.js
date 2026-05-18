@@ -186,6 +186,7 @@ export function normalizeSFrameSize(raw) {
 
 export const VALID_INPUT_TYPES    = ['udp','rtp','rtmp','http','file','srt','capture']
 export const VALID_VIDEO_CODECS   = ['disabled','copy','libx264','libx265','mpeg2video','mpeg4','h264_nvenc','hevc_nvenc','h264_vaapi']
+export const VALID_INPUT_DECODER_CODECS = ['h264_cuvid','hevc_cuvid','mpeg2_cuvid','mpeg4_cuvid','h264_qsv','hevc_qsv']
 export const VALID_HWACCELS       = ['none','cuda','vaapi','qsv']
 export const VALID_PIX_FMTS       = ['yuv420p','yuv422p','yuv444p','yuv420p10le','yuv422p10le','nv12','p010le']
 export const DEPRECATED_PIX_FMTS  = ['yuvj420p','yuvj422p','yuvj444p']

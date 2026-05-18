@@ -12,7 +12,7 @@ const formState = parse(storedCommand)
 
 console.log('Form populated from stored command:')
 console.log(`  Video Codec:  ${formState.videoCodec}`)
-console.log(`  HW Accel:     ${formState.hwaccel}`)
+console.log(`  HW Accel:     ${formState.inputHwaccel}`)
 console.log(`  Preset:       ${formState.preset}`)
 console.log(`  Bitrate Mode: ${formState.bitrateMode}`)
 console.log(`  Bitrate:      ${formState.targetBitrate}`)
@@ -30,8 +30,8 @@ console.log()
 // Step 3: User changes the codec via form
 formState.videoCodec = 'libx264'
 formState.preset = 'fast'
-formState.hwaccel = undefined  // CPU codec, no hwaccel
-formState.hwaccelOutputFormat = undefined
+formState.inputHwaccel = undefined  // CPU codec, no hwaccel
+formState.inputHwaccelOutputFormat = undefined
 
 // Step 4: Validate after change
 const issues = validate(formState)

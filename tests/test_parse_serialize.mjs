@@ -64,10 +64,10 @@ console.log('\n\x1b[1m═══ Section 2: parse() — Pre-input flags ═══
 
 {
   const s = parse('ffmpeg -hwaccel cuda -hwaccel_output_format cuda -gpu 0 -deint 2 -re -stream_loop -1 -fflags +genpts+igndts -use_wallclock_as_timestamps 1 -analyzeduration 5000000 -probesize 10000000 -timeout 5000000 -thread_queue_size 1024 -i ${i} -c:v h264_nvenc -preset p4 -b:v 4M -c:a aac -f mpegts ${o}')
-  assert('hwaccel', s.hwaccel === 'cuda')
-  assert('hwaccelOutputFormat', s.hwaccelOutputFormat === 'cuda')
+  assert('inputHwaccel', s.inputHwaccel === 'cuda')
+  assert('inputHwaccelOutputFormat', s.inputHwaccelOutputFormat === 'cuda')
   assert('gpuIndex', s.gpuIndex === 0)
-  assert('nvdecDeint', s.nvdecDeint === 2)
+  assert('inputNvdecDeint', s.inputNvdecDeint === 2)
   assert('re', s.re === true)
   assert('streamLoop', s.streamLoop === true)
   assert('fflags', eq(s.fflags, ['+genpts', '+igndts']))
@@ -369,7 +369,7 @@ console.log('\n\x1b[1m═══ Section 12: serialize() — Pre-input flags ═�
 
 {
   const cmd = serialize({
-    hwaccel: 'cuda', hwaccelOutputFormat: 'cuda', gpuIndex: 0, nvdecDeint: 2,
+    inputHwaccel: 'cuda', inputHwaccelOutputFormat: 'cuda', gpuIndex: 0, inputNvdecDeint: 2,
     re: true, streamLoop: true, fflags: ['+genpts', '+igndts'],
     useWallclock: true, analyzeDuration: 5000000, probeSize: 10000000,
     timeout: 5000000, threadQueueSize: 1024,
@@ -567,7 +567,7 @@ console.log('\n\x1b[1m═══ Section 20: serialize() output passable to parse
 
 {
   const state = {
-    videoCodec: 'h264_nvenc', hwaccel: 'cuda', hwaccelOutputFormat: 'cuda',
+    videoCodec: 'h264_nvenc', inputHwaccel: 'cuda', inputHwaccelOutputFormat: 'cuda',
     preset: 'p4', profile: 'main', bitrateMode: 'cbr', targetBitrate: '5M',
     gop: 50, scThreshold: 0, audioCodec: 'aac', audioBitrate: '128k',
     sampleRate: '48000', channels: '2', outputFormat: 'mpegts',
@@ -913,6 +913,123 @@ console.log('\n\x1b[1m═══ Section: Round-trip — inputs/output preservati
   const cmd = serialize(state)
   assert('RT: 2 inputs preserved', cmd.includes('-i ${i}') && cmd.includes('-i /logo.png'))
   assert('RT: ${o} preserved', cmd.endsWith('${o}'))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+console.log('\n\x1b[1m═══ Section: Multiline formatting preservation ═══\x1b[0m')
+// ═══════════════════════════════════════════════════════════════════════════════
+
+{
+  // Shell line-continuation round-trip: backslash + newline + indentation
+  const original = 'ffmpeg \\\n  -hwaccel cuda \\\n  -i input.ts \\\n  -c:v libx264 \\\n  -preset fast \\\n  -b:v 4M \\\n  -c:a aac \\\n  -f mpegts \\\n  out.ts'
+  const state = parse(original)
+
+  // _tokenLayout metadata is captured
+  assert('_tokenLayout exists', !!state._tokenLayout)
+  assert('_tokenLayout has separators', Array.isArray(state._tokenLayout?.separators))
+  assert('separators contain continuation', state._tokenLayout?.separators.some(s => s.includes('\\\n')))
+
+  // Round-trip preserves line breaks between tokens that stayed in place
+  const cmd = serialize(state)
+  assert('RT multiline: contains backslash-newline', cmd.includes('\\\n'))
+  assert('RT multiline: -preset fast present', cmd.includes('-preset fast'))
+  assert('RT multiline: out.ts present', cmd.endsWith('out.ts'))
+}
+
+{
+  // Windows-style CRLF continuations
+  const original = 'ffmpeg \\\r\n  -i input.ts \\\r\n  -c:v libx264 \\\r\n  out.mp4'
+  const state = parse(original)
+  const cmd = serialize(state)
+  assert('RT CRLF: contains continuation', cmd.includes('\\\r\n'))
+  assert('RT CRLF: out.mp4 present', cmd.endsWith('out.mp4'))
+}
+
+{
+  // Single-line input has no continuations — canonical join preserved
+  const original = 'ffmpeg -i ${i} -c:v copy -c:a copy -f mpegts ${o}'
+  const cmd = serialize(parse(original))
+  assert('single-line: no backslash-newline', !cmd.includes('\\\n'))
+  assert('single-line: spaces only', cmd === cmd.replace(/\n/g, ''))
+}
+
+{
+  // Form-created state (no _tokenLayout) still works with canonical join
+  const cmd = serialize({ videoCodec: 'copy', audioCodec: 'copy', outputFormat: 'mpegts' })
+  assert('no _tokenLayout: canonical output', !cmd.includes('\\\n'))
+  assert('no _tokenLayout: valid command', cmd.startsWith('ffmpeg'))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+console.log('\n\x1b[1m═══ Section: Decode-side state model ═══\x1b[0m')
+// ═══════════════════════════════════════════════════════════════════════════════
+
+{
+  // Parse: decode-side fields extracted from pre-input zone
+  const s = parse('ffmpeg -hwaccel cuda -hwaccel_output_format cuda -c:v h264_cuvid -deint 1 -i ${i} -c:v libx264 -preset fast -b:v 4M -f mpegts ${o}')
+  assert('inputHwaccel parsed', s.inputHwaccel === 'cuda')
+  assert('inputHwaccelOutputFormat parsed', s.inputHwaccelOutputFormat === 'cuda')
+  assert('inputDecoderCodec parsed', s.inputDecoderCodec === 'h264_cuvid')
+  assert('inputNvdecDeint parsed', s.inputNvdecDeint === 1)
+  assert('videoCodec is output encoder', s.videoCodec === 'libx264')
+}
+
+{
+  // Serialize: decode-side fields emitted before -i
+  const cmd = serialize({
+    inputHwaccel: 'cuda', inputHwaccelOutputFormat: 'cuda',
+    inputDecoderCodec: 'h264_cuvid', inputNvdecDeint: 1,
+    videoCodec: 'libx264', preset: 'fast', bitrateMode: 'cbr', targetBitrate: '4M',
+    audioCodec: 'aac', outputFormat: 'mpegts',
+  })
+  assert('serialize -hwaccel cuda', cmd.includes('-hwaccel cuda'))
+  assert('serialize -hwaccel_output_format cuda', cmd.includes('-hwaccel_output_format cuda'))
+  assert('serialize -c:v h264_cuvid before -i', cmd.indexOf('-c:v h264_cuvid') < cmd.indexOf('-i '))
+  assert('serialize -deint 1', cmd.includes('-deint 1'))
+  assert('serialize -c:v libx264 after -i', cmd.indexOf('-c:v libx264') > cmd.indexOf('-i '))
+}
+
+{
+  // Round-trip: decode-side + encode-side
+  const original = 'ffmpeg -y -hide_banner -hwaccel cuda -hwaccel_output_format cuda -c:v h264_cuvid -deint 1 -i ${i} -c:v libx264 -preset fast -b:v 4M -c:a aac -b:a 128k -f mpegts ${o}'
+  const state1 = parse(original)
+  const cmd = serialize(state1)
+  const state2 = parse(cmd)
+  assert('RT decode: inputHwaccel', state2.inputHwaccel === 'cuda')
+  assert('RT decode: inputHwaccelOutputFormat', state2.inputHwaccelOutputFormat === 'cuda')
+  assert('RT decode: inputDecoderCodec', state2.inputDecoderCodec === 'h264_cuvid')
+  assert('RT decode: inputNvdecDeint', state2.inputNvdecDeint === 1)
+  assert('RT decode: videoCodec', state2.videoCodec === 'libx264')
+  assert('RT decode: preset', state2.preset === 'fast')
+}
+
+{
+  // Decode-only: hwaccel without explicit decoder codec
+  const s = parse('ffmpeg -hwaccel cuda -i ${i} -c:v h264_nvenc -preset p4 -b:v 4M -f mpegts ${o}')
+  assert('hwaccel without decoder: inputHwaccel', s.inputHwaccel === 'cuda')
+  assert('hwaccel without decoder: no inputDecoderCodec', !s.inputDecoderCodec)
+  const cmd = serialize(s)
+  assert('hwaccel without decoder: serialize has -hwaccel', cmd.includes('-hwaccel cuda'))
+  assert('hwaccel without decoder: no pre-input -c:v', cmd.indexOf('-c:v') > cmd.indexOf('-i '))
+}
+
+{
+  // Decode fields emitted independently of output codec
+  const cmd = serialize({
+    inputHwaccel: 'cuda', inputHwaccelOutputFormat: 'cuda',
+    videoCodec: 'copy', audioCodec: 'copy', outputFormat: 'mpegts',
+  })
+  assert('decode with copy: -hwaccel cuda present', cmd.includes('-hwaccel cuda'))
+  assert('decode with copy: -hwaccel_output_format cuda present', cmd.includes('-hwaccel_output_format cuda'))
+}
+
+{
+  // Decode fields with no output codec at all
+  const cmd = serialize({
+    inputHwaccel: 'vaapi',
+    outputFormat: 'mpegts',
+  })
+  assert('decode no output codec: -hwaccel vaapi', cmd.includes('-hwaccel vaapi'))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

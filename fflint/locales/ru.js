@@ -10,8 +10,9 @@ export default {
 
   l1_input_type:          { message: ({ valid, val }) => `Тип входа должен быть одним из: ${valid} (получено: "${val}")` },
   l1_video_codec:         { message: ({ valid, val }) => `Видеокодек должен быть одним из: ${valid} (получено: "${val}")` },
-  l1_hwaccel:             { message: ({ valid, val }) => `Аппаратное ускорение должно быть одним из: ${valid} (получено: "${val}")` },
-  l1_hwaccel_output_fmt:  { message: ({ valid, val }) => `Формат вывода аппаратного ускорения должен быть одним из: ${valid} (получено: "${val}")` },
+  l1_input_decoder_codec: { message: ({ valid, val }) => `Декодер входного видео должен быть одним из: ${valid} (получено: "${val}")` },
+  l1_input_hwaccel:       { message: ({ valid, val }) => `Аппаратное ускорение должно быть одним из: ${valid} (получено: "${val}")` },
+  l1_input_hwaccel_output_fmt: { message: ({ valid, val }) => `Формат вывода аппаратного ускорения должен быть одним из: ${valid} (получено: "${val}")` },
   l1_color_primaries:     { message: ({ valid, val }) => `Основные цвета должны быть одним из: ${valid} (получено: "${val}")` },
   l1_color_trc:           { message: ({ valid, val }) => `Характеристика передачи должна быть одной из: ${valid} (получено: "${val}")` },
   l1_colorspace:          { message: ({ valid, val }) => `Цветовое пространство должно быть одним из: ${valid} (получено: "${val}")` },
@@ -454,7 +455,7 @@ export default {
 
   // Interlace / field order
   nvdec_deint_with_filter: {
-    message: ({ s }) => `-deint ${s.nvdecDeint} (аппаратный деинтерлейс NVDEC) и -filter:v ${s.deinterlaceFilter} оба активны — поток будет деинтерлейсирован дважды. Используйте что-то одно: либо аппаратный деинтерлейс NVDEC (-deint), либо фильтр (${s.deinterlaceFilter}). Удалите одно для устранения конфликта`,
+    message: ({ s }) => `-deint ${s.inputNvdecDeint} (аппаратный деинтерлейс NVDEC) и -filter:v ${s.deinterlaceFilter} оба активны — поток будет деинтерлейсирован дважды. Используйте что-то одно: либо аппаратный деинтерлейс NVDEC (-deint), либо фильтр (${s.deinterlaceFilter}). Удалите одно для устранения конфликта`,
   },
   nvdec_deint_no_hwaccel:      { message: '-deint требует -hwaccel cuda (конвейер декодера NVDEC cuvid) — без него флаг игнорируется или вызывает ошибку' },
   nvdec_deint_no_output_fmt:   { message: '-deint с -hwaccel cuda, но без -hwaccel_output_format cuda — декодированные кадры будут загружены в ОЗУ после деинтерлейса NVDEC. Установите HW Accel Output в «cuda»' },
@@ -520,7 +521,7 @@ export default {
   // HW accel output format
   hwaccel_output_fmt_no_hwaccel:  { message: '-hwaccel_output_format требует установки -hwaccel — кадры не могут оставаться на GPU без аппаратного декодера' },
   hwaccel_output_fmt_mismatch: {
-    message: ({ s }) => `-hwaccel_output_format "${s.hwaccelOutputFormat}" не соответствует -hwaccel "${s.hwaccel}" — декодированные кадры будут загружены в ОЗУ, что нивелирует GPU-конвейер`,
+    message: ({ s }) => `-hwaccel_output_format "${s.inputHwaccelOutputFormat}" не соответствует -hwaccel "${s.inputHwaccel}" — декодированные кадры будут загружены в ОЗУ, что нивелирует GPU-конвейер`,
   },
   nvenc_cuda_missing_output_fmt: {
     message: ({ s }) => {
