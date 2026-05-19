@@ -4,7 +4,7 @@ import { validateLayer1 } from './layer1.js'
 import { t }              from './i18n.js'
 
 /** Library version number */
-export const VERSION = '1.2.0'
+export const VERSION = '2.0.0'
 
 // Re-export parse and serialize for convenience
 export { parse } from './parse.js'
