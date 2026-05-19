@@ -137,6 +137,7 @@ function parseTokens(str) {
     dialnorm: '', bsfAudio: 'none',
     subtitleMode: '',
     outputFormat: 'mpegts',
+    _explicitOutputFormat: false,
     hlsTime: '4', hlsListSize: '5', hlsFlags: '', hlsSegmentType: 'mpegts',
     avoidNegativeTs: '',
     mpegtsServiceId: '', mpegtsPmtStartPid: '', mpegtsStartPid: '',
@@ -147,6 +148,7 @@ function parseTokens(str) {
     inputType: 'udp', logoPath: '',
     inputs: [], outputValue: '',
     passthroughPreInput: [], passthroughPostInput: [],
+    _passthroughEntries: [],
     tune: '', tier: '', lookahead: '',
     _flagOrder: [],
   }
@@ -271,7 +273,7 @@ function parseTokens(str) {
         break
       }
       case '-b:a': i++; raw.audioBitrate = tokens[i] || 'default'; raw._flagOrder.push('audioBitrate'); break
-      case '-f': i++; raw.outputFormat = tokens[i] || 'mpegts'; raw._flagOrder.push('outputFormat'); break
+      case '-f': i++; raw.outputFormat = tokens[i] || 'mpegts'; raw._explicitOutputFormat = true; raw._flagOrder.push('outputFormat'); break
       case '-hls_time': i++; raw.hlsTime = tokens[i] || '4'; raw._flagOrder.push('hlsTime'); break
       case '-hls_list_size': i++; raw.hlsListSize = tokens[i] || '5'; raw._flagOrder.push('hlsListSize'); break
       case '-hls_flags': i++; raw.hlsFlags = tokens[i] || ''; raw._flagOrder.push('hlsFlags'); break
@@ -323,6 +325,8 @@ function parseTokens(str) {
       case '-hls_segment_filename': i++; break
       default: {
         if (t.startsWith('-')) {
+          const passthroughTokens = [t]
+          const entryId = `__passthrough_${passedInput ? 'post' : 'pre'}_${raw._passthroughEntries.length}`
           // Per-stream index specifiers: -c:a:0, -b:a:0, -c:v:0, etc.
           const streamIdx = t.match(/^(-(?:c|b):[vas]):\d+$/)
           if (streamIdx) {
@@ -348,8 +352,14 @@ function parseTokens(str) {
           bucket.push(t)
           if (i + 1 < tokens.length) {
             const next = tokens[i + 1]
-            if (!next.startsWith('-') && !next.startsWith('${')) { i++; bucket.push(tokens[i]) }
+            if (!next.startsWith('-') && !next.startsWith('${')) {
+              i++
+              bucket.push(tokens[i])
+              passthroughTokens.push(tokens[i])
+            }
           }
+          raw._passthroughEntries.push({ id: entryId, zone: passedInput ? 'post' : 'pre', tokens: passthroughTokens })
+          raw._flagOrder.push(entryId)
         }
         break
       }
@@ -558,6 +568,10 @@ function toFflintState(s) {
     f.passthroughPreInput = s.passthroughPreInput
   if (s.passthroughPostInput && s.passthroughPostInput.length)
     f.passthroughPostInput = s.passthroughPostInput
+  if (Array.isArray(s._passthroughEntries) && s._passthroughEntries.length)
+    f._passthroughEntries = s._passthroughEntries
+
+  f._explicitOutputFormat = !!s._explicitOutputFormat
 
   // Flag order metadata for order-preserving serialization
   if (Array.isArray(s._flagOrder) && s._flagOrder.length)

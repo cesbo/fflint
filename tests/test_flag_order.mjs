@@ -72,6 +72,24 @@ check(
   'ffmpeg -y -hide_banner -i ${i} -c:v libx264 -b:v 4M -bufsize 8M -maxrate 6M -c:a aac -f mpegts ${o}'
 )
 
+const cmdAlias = 'ffmpeg -readrate 1 -y -hide_banner -stream_loop -1 -vcodec copy -acodec aac -i ${i} ${o}'
+const outAlias = serialize(parse(cmdAlias))
+
+check(
+  'passthrough aliases keep original pre-input order',
+  outAlias,
+  'ffmpeg -y -hide_banner -readrate 1 -stream_loop -1 -vcodec copy -acodec aac -i ${i} ${o}'
+)
+
+const cmdImplicitFormat = 'ffmpeg -y -hide_banner -i ${i} -c:v copy -c:a copy ${o}'
+const outImplicitFormat = serialize(parse(cmdImplicitFormat))
+
+check(
+  'implicit default format does not materialize as -f',
+  outImplicitFormat,
+  'ffmpeg -y -hide_banner -i ${i} -c:v copy -c:a copy ${o}'
+)
+
 console.log('\n═══ Hints: pre-input migration ═══')
 
 // -gpu after -i → hint about migration

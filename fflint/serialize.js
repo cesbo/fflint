@@ -30,6 +30,10 @@ export function serialize(state, options = {}) {
   const inputPlaceholder  = options.inputPlaceholder  || '${i}'
   const outputPlaceholder = options.outputPlaceholder || '${o}'
   const withHints = !!options.withHints
+  const hasOrderedPassthrough = Array.isArray(s._passthroughEntries) && s._passthroughEntries.length > 0
+
+  const preInputPassthroughIds = getOrderedPassthroughIds(s._passthroughEntries, 'pre')
+  const postInputPassthroughIds = getOrderedPassthroughIds(s._passthroughEntries, 'post')
 
   const p = ['ffmpeg', '-y', '-hide_banner']
 
@@ -43,16 +47,19 @@ export function serialize(state, options = {}) {
     'inputHwaccel', 'inputHwaccelOutputFormat', 'inputNvdecDeint', 'inputDecoderCodec', 'gpuIndex',
     're', 'streamLoop', 'fflags', 'useWallclock', 'analyzeDuration',
     'probeSize', 'timeout', 'threadQueueSize', 'reconnect', 'reconnectStreamed', 'listen',
+    ...preInputPassthroughIds,
   ])
 
   const preInputEmitters = buildPreInputEmitters(s)
   const postInputEmitters = buildPostInputEmitters(s, isEncoding, isGpuCodec, isNvenc)
+  addOrderedPassthroughEmitters(preInputEmitters, s._passthroughEntries, 'pre')
+  addOrderedPassthroughEmitters(postInputEmitters, s._passthroughEntries, 'post')
 
   // Emit pre-input flags: respect _flagOrder for ordering within the pre-input zone
   emitOrdered(p, preInputEmitters, PRE_INPUT_FIELDS, s._flagOrder)
 
   // Passthrough pre-input flags
-  if (Array.isArray(s.passthroughPreInput) && s.passthroughPreInput.length)
+  if (!hasOrderedPassthrough && Array.isArray(s.passthroughPreInput) && s.passthroughPreInput.length)
     p.push(...s.passthroughPreInput)
 
   // ── Input ──────────────────────────────────────────────────────────────────
@@ -67,11 +74,11 @@ export function serialize(state, options = {}) {
 
   // ── Post-input flags ───────────────────────────────────────────────────────
 
-  const POST_INPUT_FIELDS = new Set(postInputEmitters.keys())
+  const POST_INPUT_FIELDS = new Set([...postInputEmitters.keys(), ...postInputPassthroughIds])
   emitOrdered(p, postInputEmitters, POST_INPUT_FIELDS, s._flagOrder)
 
   // Passthrough post-input flags
-  if (Array.isArray(s.passthroughPostInput) && s.passthroughPostInput.length)
+  if (!hasOrderedPassthrough && Array.isArray(s.passthroughPostInput) && s.passthroughPostInput.length)
     p.push(...s.passthroughPostInput)
 
   p.push(s.outputValue || outputPlaceholder)
@@ -150,6 +157,19 @@ function emitOrdered(p, emitters, allowedFields, flagOrder) {
     const tokens = emitter()
     if (tokens && tokens.length) p.push(...tokens)
     emitted.add(field)
+  }
+}
+
+function getOrderedPassthroughIds(entries, zone) {
+  if (!Array.isArray(entries) || !entries.length) return []
+  return entries.filter(entry => entry && entry.zone === zone && entry.id).map(entry => entry.id)
+}
+
+function addOrderedPassthroughEmitters(emitters, entries, zone) {
+  if (!Array.isArray(entries) || !entries.length) return
+  for (const entry of entries) {
+    if (!entry || entry.zone !== zone || !entry.id) continue
+    emitters.set(entry.id, () => Array.isArray(entry.tokens) ? [...entry.tokens] : [])
   }
 }
 
@@ -399,7 +419,8 @@ function buildPostInputEmitters(s, isEncoding, isGpuCodec, isNvenc) {
   })
 
   // Output format
-  m.set('outputFormat', () => s.outputFormat ? ['-f', s.outputFormat] : [])
+  m.set('outputFormat', () =>
+    s.outputFormat && s._explicitOutputFormat !== false ? ['-f', s.outputFormat] : [])
 
   // HLS options
   m.set('hlsTime', () =>
