@@ -186,18 +186,15 @@ function joinTokens(emitted, layout) {
 
   const orig = layout.tokens
   const seps = layout.separators
-  let searchFrom = 0
+  const tokenPositions = buildTokenPositions(orig)
   let result = emitted[0]
 
-  // Advance past the first matching original token (usually 'ffmpeg')
-  const firstMatch = indexOfToken(orig, emitted[0], searchFrom)
-  if (firstMatch !== -1) searchFrom = firstMatch + 1
+  consumeTokenPosition(tokenPositions, emitted[0])
 
   for (let i = 1; i < emitted.length; i++) {
-    const idx = indexOfToken(orig, emitted[i], searchFrom)
+    const idx = consumeTokenPosition(tokenPositions, emitted[i])
     if (idx !== -1 && idx > 0 && seps[idx - 1]) {
       result += seps[idx - 1] + emitted[i]
-      searchFrom = idx + 1
     } else {
       // No match in original stream — use the "default" separator.
       // If the layout has any multiline separators, keep the style consistent
@@ -209,11 +206,20 @@ function joinTokens(emitted, layout) {
   return result
 }
 
-function indexOfToken(tokens, token, from) {
-  for (let i = from; i < tokens.length; i++) {
-    if (tokens[i] === token) return i
+function buildTokenPositions(tokens) {
+  const positions = new Map()
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i]
+    if (!positions.has(token)) positions.set(token, [])
+    positions.get(token).push(i)
   }
-  return -1
+  return positions
+}
+
+function consumeTokenPosition(positions, token) {
+  const matches = positions.get(token)
+  if (!matches || !matches.length) return -1
+  return matches.shift()
 }
 
 function defaultSep(seps) {

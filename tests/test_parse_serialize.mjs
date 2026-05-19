@@ -1004,6 +1004,17 @@ console.log('\n\x1b[1m═══ Section: Decode-side state model ═══\x1b[0
 }
 
 {
+  // Multiline round-trip with decode-side and encode-side -c:v must preserve
+  // grouped flag/value pairs even after pre-input reordering.
+  const original = 'ffmpeg \\\n+  -hwaccel cuda \\\n+  -c:v h264_cuvid \\\n+  -deint 1 \\\n+  -i input.ts \\\n+  -c:v libx264 \\\n+  out.mp4'
+  const cmd = serialize(parse(original))
+  assert('RT multiline decode: input decoder stays grouped', cmd.includes('-c:v h264_cuvid'))
+  assert('RT multiline decode: input stays grouped', cmd.includes('-i input.ts'))
+  assert('RT multiline decode: output encoder stays grouped', cmd.includes('-c:v libx264'))
+  assert('RT multiline decode: no explicit inferred -f mp4', !cmd.includes('-f mp4'))
+}
+
+{
   // Decode-only: hwaccel without explicit decoder codec
   const s = parse('ffmpeg -hwaccel cuda -i ${i} -c:v h264_nvenc -preset p4 -b:v 4M -f mpegts ${o}')
   assert('hwaccel without decoder: inputHwaccel', s.inputHwaccel === 'cuda')
