@@ -31,6 +31,7 @@ const state = {
 let profilesStore = [];
 let editingProfileId = null;
 let nextProfileId = 1;
+let profileMode = 'constructor'; // 'constructor' | 'manual'
 
 function loadProfilesStore() {
   try {
@@ -68,8 +69,9 @@ function renderProfilesList() {
     empty.style.display = 'none';
     table.style.display = '';
     profilesStore.forEach(p => {
+      const modeBadge = p.mode === 'manual' ? ' <span class="mode-badge mode-badge-manual" style="font-size:9px">Manual</span>' : '';
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${p.id}</td><td>${escHtml(p.name || '(unnamed)')}</td>
+      tr.innerHTML = `<td>${p.id}</td><td>${escHtml(p.name || '(unnamed)')}${modeBadge}</td>
         <td style="text-align:right">
           <button class="btn-icon" onclick="editProfile(${p.id})" title="Edit">✎</button>
           <button class="btn-icon btn-icon-danger" onclick="deleteProfile(${p.id})" title="Delete">✕</button>
@@ -87,6 +89,7 @@ function switchView(view) {
 
 function startNewProfile() {
   editingProfileId = null;
+  profileMode = 'constructor';
   resetState();
   syncToForm(state);
   renderVariables();
@@ -101,16 +104,33 @@ function editProfile(id) {
   const profile = profilesStore.find(p => p.id === id);
   if (!profile) return;
   editingProfileId = id;
-  const parsed = parseFFmpegCommand(profile.command || '');
-  parsed.name = profile.name || parsed.name;
-  Object.assign(state, parsed);
-  syncToForm(state);
-  renderVariables();
-  applyDisabledStates();
-  doRebuild();
   document.getElementById('editor-title').textContent = 'Edit Profile: ' + (profile.name || '#' + id);
   switchView('editor');
-  switchTab('constructor');
+
+  if (profile.mode === 'manual') {
+    // Manual mode: load raw command into textarea without roundtripping
+    profileMode = 'manual';
+    state.name = profile.name || '';
+    document.getElementById('manual-name').value = state.name;
+    document.getElementById('manual-textarea').value = profile.command || '';
+    // Show manual tab directly (bypass switchTab to avoid import modal trigger)
+    document.getElementById('panel-constructor').classList.add('hidden');
+    document.getElementById('panel-manual').classList.remove('hidden');
+    document.getElementById('tab-constructor').classList.remove('active');
+    document.getElementById('tab-manual').classList.add('active');
+    updateModeBadge();
+  } else {
+    // Constructor mode: parse command into form state
+    profileMode = 'constructor';
+    const parsed = parseFFmpegCommand(profile.command || '');
+    parsed.name = profile.name || parsed.name;
+    Object.assign(state, parsed);
+    syncToForm(state);
+    renderVariables();
+    applyDisabledStates();
+    doRebuild();
+    switchTab('constructor');
+  }
 }
 
 function deleteProfile(id) {
@@ -157,9 +177,10 @@ function saveCurrentProfile() {
     if (idx !== -1) {
       profilesStore[idx].name = state.name;
       profilesStore[idx].command = command;
+      profilesStore[idx].mode = 'constructor';
     }
   } else {
-    profilesStore.push({ id: nextProfileId++, name: state.name, command: command });
+    profilesStore.push({ id: nextProfileId++, name: state.name, command: command, mode: 'constructor' });
   }
   saveProfilesStore();
   showSavedFeedback();
@@ -174,18 +195,16 @@ function saveFromManual() {
     alert('Cannot save:\n\n' + manualErrors.join('\n'));
     return;
   }
-  const parsed = parseFFmpegCommand(rawText);
-  parsed.name = document.getElementById('manual-name').value || parsed.name;
-  Object.assign(state, parsed);
-  const command = buildCommandOnly(state);
+  const name = document.getElementById('manual-name').value || '';
   if (editingProfileId !== null) {
     const idx = profilesStore.findIndex(p => p.id === editingProfileId);
     if (idx !== -1) {
-      profilesStore[idx].name = state.name;
-      profilesStore[idx].command = command;
+      profilesStore[idx].name = name;
+      profilesStore[idx].command = rawText;
+      profilesStore[idx].mode = 'manual';
     }
   } else {
-    profilesStore.push({ id: nextProfileId++, name: state.name, command: command });
+    profilesStore.push({ id: nextProfileId++, name: name, command: rawText, mode: 'manual' });
   }
   saveProfilesStore();
   showSavedFeedback('manual-save-btn');
@@ -1120,8 +1139,12 @@ function doRebuild() {
   document.getElementById('preview-code').innerHTML = highlightProfile(profile);
   const manualName = document.getElementById('manual-name');
   if (manualName && document.activeElement !== manualName) manualName.value = state.name;
-  const manualTA = document.getElementById('manual-textarea');
-  if (manualTA && document.activeElement !== manualTA) manualTA.value = buildCommandOnly(state);
+
+  // Only sync textarea in constructor mode (in manual mode textarea is source of truth)
+  if (profileMode === 'constructor') {
+    const manualTA = document.getElementById('manual-textarea');
+    if (manualTA && document.activeElement !== manualTA) manualTA.value = buildCommandOnly(state);
+  }
 
   const { errors, warnings, infos } = validate(state);
   const hasErrors = errors.length > 0;
@@ -1176,14 +1199,27 @@ function onAudioCodecChange() {
 
 // ─── Tab switch ──────────────────────────────────────────────────────────────
 function switchTab(tab) {
+  // Manual → Constructor: requires import confirmation
+  if (tab === 'constructor' && profileMode === 'manual') {
+    showImportModal();
+    return;
+  }
+
   document.getElementById('panel-constructor').classList.toggle('hidden', tab !== 'constructor');
   document.getElementById('panel-manual').classList.toggle('hidden', tab !== 'manual');
   document.getElementById('tab-constructor').classList.toggle('active', tab === 'constructor');
   document.getElementById('tab-manual').classList.toggle('active', tab === 'manual');
+  document.getElementById('manual-mode-banner').classList.toggle('hidden', profileMode !== 'manual');
+
   if (tab === 'manual') {
     document.getElementById('manual-name').value = state.name;
-    document.getElementById('manual-textarea').value = buildCommandOnly(state);
+    // In constructor mode, populate textarea with generated command
+    if (profileMode === 'constructor') {
+      document.getElementById('manual-textarea').value = buildCommandOnly(state);
+    }
   }
+
+  updateModeBadge();
 }
 
 // ─── Copy ────────────────────────────────────────────────────────────────────
@@ -1197,6 +1233,112 @@ function copyCommand() {
 }
 
 // showSaved replaced by showSavedFeedback() and saveCurrentProfile() above
+
+// ─── Mode Management ─────────────────────────────────────────────────────────
+function updateModeBadge() {
+  const badge = document.getElementById('mode-badge');
+  if (profileMode === 'manual') {
+    badge.textContent = 'Manual';
+    badge.className = 'mode-badge mode-badge-manual';
+  } else {
+    badge.textContent = 'Constructor';
+    badge.className = 'mode-badge mode-badge-constructor';
+  }
+}
+
+function onManualTextareaInput() {
+  if (profileMode === 'constructor') {
+    profileMode = 'manual';
+    updateModeBadge();
+    document.getElementById('manual-mode-banner').classList.remove('hidden');
+  }
+}
+
+// ─── Import Modal ────────────────────────────────────────────────────────────
+function showImportModal() {
+  const rawText = document.getElementById('manual-textarea').value.trim();
+  if (!rawText) {
+    // Nothing to import — switch to constructor with current state
+    profileMode = 'constructor';
+    document.getElementById('panel-constructor').classList.remove('hidden');
+    document.getElementById('panel-manual').classList.add('hidden');
+    document.getElementById('tab-constructor').classList.add('active');
+    document.getElementById('tab-manual').classList.remove('active');
+    document.getElementById('manual-mode-banner').classList.add('hidden');
+    updateModeBadge();
+    return;
+  }
+
+  // Show original command
+  document.getElementById('import-original').textContent = rawText;
+
+  // Parse and re-serialize to show what constructor will produce
+  const parsed = parseFFmpegCommand(rawText);
+  const roundtripped = buildCommandOnly(parsed);
+  document.getElementById('import-converted').textContent = roundtripped;
+
+  // Generate notes about what changed
+  const notes = document.getElementById('import-notes');
+  notes.innerHTML = '';
+
+  // Passthrough flags (not directly supported by constructor)
+  const passthroughPre = parsed.passthroughPreInput || [];
+  const passthroughPost = parsed.passthroughPostInput || [];
+  if (passthroughPre.length > 0 || passthroughPost.length > 0) {
+    const allFlags = [...passthroughPre, ...passthroughPost].filter(t => t.startsWith('-'));
+    if (allFlags.length > 0) {
+      addImportNote(notes, 'warn', 'Unrecognized flags will be stored in Extra Flags: ' + allFlags.join(', '));
+    }
+  }
+
+  // Check if commands differ after normalization
+  const normalizedOrig = rawText.replace(/\s+/g, ' ').trim();
+  const normalizedConv = roundtripped.replace(/\s+/g, ' ').trim();
+  if (normalizedOrig === normalizedConv) {
+    addImportNote(notes, 'ok', 'The command is fully recognized. No changes after conversion.');
+  } else {
+    addImportNote(notes, 'warn', 'The command will be normalized. Flag ordering and formatting may change.');
+  }
+
+  // Variables info
+  if (parsed.variables && parsed.variables.length > 0) {
+    addImportNote(notes, 'info', parsed.variables.length + ' variable(s) detected in WHERE block.');
+  }
+
+  document.getElementById('import-modal').classList.remove('hidden');
+}
+
+function addImportNote(container, type, text) {
+  const div = document.createElement('div');
+  const prefix = type === 'warn' ? '⚠️ ' : type === 'ok' ? '✅ ' : 'ℹ️ ';
+  div.className = 'import-note import-note-' + type;
+  div.textContent = prefix + text;
+  container.appendChild(div);
+}
+
+function closeImportModal() {
+  document.getElementById('import-modal').classList.add('hidden');
+}
+
+function confirmImport() {
+  closeImportModal();
+  const rawText = document.getElementById('manual-textarea').value.trim();
+  const parsed = parseFFmpegCommand(rawText);
+  parsed.name = document.getElementById('manual-name').value || parsed.name;
+  Object.assign(state, parsed);
+  profileMode = 'constructor';
+  syncToForm(state);
+  renderVariables();
+  applyDisabledStates();
+  doRebuild();
+  // Switch panels
+  document.getElementById('panel-constructor').classList.remove('hidden');
+  document.getElementById('panel-manual').classList.add('hidden');
+  document.getElementById('tab-constructor').classList.add('active');
+  document.getElementById('tab-manual').classList.remove('active');
+  document.getElementById('manual-mode-banner').classList.add('hidden');
+  updateModeBadge();
+}
 
 // ─── Command Parser (reverse) ─────────────────────────────────────────────────
 function parseFFmpegCommand(str) {
@@ -1408,16 +1550,7 @@ function parseFFmpegCommand(str) {
 }
 
 function parseFromManual() {
-  const text = document.getElementById('manual-textarea').value;
-  if (!text.trim()) return;
-  const parsed = parseFFmpegCommand(text);
-  parsed.name = document.getElementById('manual-name').value || parsed.name;
-  Object.assign(state, parsed);
-  syncToForm(state);
-  renderVariables();
-  applyDisabledStates();
-  doRebuild();
-  switchTab('constructor');
+  showImportModal();
 }
 
 // ─── Init ────────────────────────────────────────────────────────────────────
@@ -1436,4 +1569,6 @@ Object.assign(window, {
   addVariable, removeVariable, updateVariable, copyCommand,
   saveCurrentProfile, editProfile, deleteProfile,
   saveFromManual, parseFromManual,
+  showImportModal, confirmImport, closeImportModal,
+  onManualTextareaInput, updateModeBadge,
 });

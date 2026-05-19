@@ -70,6 +70,7 @@
             <div class="tabs">
               <div class="tab active" id="tab-constructor" onclick="switchTab('constructor')">Constructor</div>
               <div class="tab" id="tab-manual" onclick="switchTab('manual')">Editor</div>
+              <span class="mode-badge mode-badge-constructor" id="mode-badge">Constructor</span>
             </div>
           </div>
         </div>
@@ -680,6 +681,9 @@
       <!-- MANUAL EDITOR TAB -->
       <div id="panel-manual" class="manual-wrap hidden">
         <div class="manual-form">
+          <div id="manual-mode-banner" class="manual-mode-banner hidden">
+            Raw command mode — the command is saved exactly as written, without roundtrip normalization.
+          </div>
           <div class="manual-field">
             <label class="manual-label" for="manual-name">Name</label>
             <input type="text" id="manual-name" placeholder="My Profile" oninput="state.name=this.value;doRebuild()">
@@ -688,6 +692,7 @@
             <label class="manual-label" for="manual-textarea">FFmpeg command</label>
             <div class="manual-box">
               <textarea class="manual-textarea" id="manual-textarea" spellcheck="false"
+                oninput="onManualTextareaInput()"
                 placeholder="ffmpeg -y -hide_banner -i ${i} -c:v copy -c:a copy -f mpegts ${o}"></textarea>
             </div>
             <div class="manual-hint">Write a command, add input as <code>${i}</code>... outputs as <code>${o}</code>.
@@ -698,13 +703,38 @@
           <button class="btn-cancel" onclick="goBackToList()">Cancel</button>
           <button class="btn-primary" style="max-width:120px" id="manual-save-btn"
             onclick="saveFromManual()">Save</button>
-          <button class="btn-secondary" style="max-width:220px" onclick="parseFromManual()">↩ Parse to
+          <button class="btn-secondary" style="max-width:220px" onclick="showImportModal()">↩ Convert to
             Constructor</button>
         </div>
       </div>
 
     </div><!-- /view-editor -->
   </div><!-- /main -->
+
+  <!-- Import confirmation modal -->
+  <div id="import-modal" class="modal-overlay hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title">Convert to Constructor</div>
+        <button class="modal-close" onclick="closeImportModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="import-section">
+          <div class="import-section-title">Your command</div>
+          <div class="import-code" id="import-original"></div>
+        </div>
+        <div class="import-section">
+          <div class="import-section-title">After conversion</div>
+          <div class="import-code" id="import-converted"></div>
+        </div>
+        <div class="import-notes" id="import-notes"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" onclick="closeImportModal()">Cancel</button>
+        <button class="btn-primary" onclick="confirmImport()" style="flex:0 0 auto">Convert to Constructor</button>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="proto_ffmpeg_constructor.js"></script>
 </body>

@@ -251,3 +251,30 @@ select:disabled, input[type="text"]:disabled, input[type="number"]:disabled { ba
   .profiles-list-wrap { padding: 0 10px 20px !important; }
   .profiles-table th:first-child, .profiles-table td:first-child { display: none; }
 }
+
+/* --- Mode Badge --- */
+.mode-badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 99px; font-size: 10px; font-weight: 600; letter-spacing: 0.03em; margin-left: 10px; white-space: nowrap; vertical-align: middle; }
+.mode-badge-manual { background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D; }
+.mode-badge-constructor { background: #E0E7FF; color: #3730A3; border: 1px solid #A5B4FC; }
+
+/* --- Import Modal --- */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+.modal-dialog { background: white; border-radius: 12px; width: 720px; max-width: 92vw; max-height: 82vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #eee; }
+.modal-title { font-size: 16px; font-weight: 700; color: #111; }
+.modal-close { background: none; border: none; font-size: 18px; color: #999; cursor: pointer; padding: 4px 8px; border-radius: 4px; }
+.modal-close:hover { background: #f0f0f0; color: #333; }
+.modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+.modal-footer { display: flex; gap: 10px; padding: 16px 20px; border-top: 1px solid #eee; justify-content: flex-end; }
+
+.import-section { margin-bottom: 16px; }
+.import-section-title { font-size: 11px; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+.import-code { background: #1E1E2E; color: #CDD6F4; padding: 12px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.7; white-space: pre-wrap; word-break: break-all; max-height: 150px; overflow-y: auto; }
+.import-notes { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.import-note { font-size: 12px; line-height: 1.4; padding: 8px 10px; border-radius: 6px; }
+.import-note-info { background: #EFF6FF; border: 1px solid #BFDBFE; color: #1D4ED8; }
+.import-note-warn { background: #FFFBEB; border: 1px solid #FCD34D; color: #92400E; }
+.import-note-ok { background: #F0FDF4; border: 1px solid #BBF7D0; color: #166534; }
+
+/* --- Manual mode banner --- */
+.manual-mode-banner { background: #FEF3C7; border: 1px solid #FCD34D; color: #92400E; padding: 8px 14px; border-radius: 6px; font-size: 12px; line-height: 1.4; }
