@@ -1,6 +1,6 @@
 {
   "name": "@cesbo/fflint",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "FFmpeg command parser, serializer and validator",
   "type": "module",
   "exports": {
@@ -10,7 +10,8 @@
     "./validate-raw": "./fflint/validate-raw.js",
     "./i18n": "./fflint/i18n.js",
     "./locales/en": "./fflint/locales/en.js",
-    "./locales/ru": "./fflint/locales/ru.js"
+    "./locales/ru": "./fflint/locales/ru.js",
+    "./locales/es": "./fflint/locales/es.js"
   },
   "main": "./fflint/fflint.js",
   "files": [

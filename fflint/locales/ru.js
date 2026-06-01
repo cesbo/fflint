@@ -20,7 +20,7 @@ export default {
   l1_audio_codec:         { message: ({ valid, val }) => `Аудиокодек должен быть одним из: ${valid} (получено: "${val}")` },
   l1_sample_rate:         { message: ({ valid, val }) => `Частота дискретизации должна быть одной из: ${valid} (получено: "${val}")` },
   l1_channels:            { message: ({ valid, val }) => `Количество каналов должно быть одним из: ${valid} (получено: "${val}")` },
-  l1_bsf_audio:           { message: ({ valid, val }) => `Аудио фильтр битового потока должен быть одним из: ${valid} (получено: "${val}")` },
+  l1_bsf_audio:           { message: ({ valid, val }) => `Аудио bitstream filter должен быть одним из: ${valid} (получено: "${val}")` },
   l1_subtitle_mode:       { message: ({ valid, val }) => `Режим субтитров должен быть одним из: ${valid} (получено: "${val}")` },
   l1_output_format:       { message: ({ valid, val }) => `Формат вывода должен быть одним из: ${valid} (получено: "${val}")` },
   l1_hls_seg_type:        { message: ({ valid, val }) => `Тип сегмента HLS должен быть одним из: ${valid} (получено: "${val}")` },
@@ -56,7 +56,7 @@ export default {
   // ── Layer 1: sc_threshold ────────────────────────────────────────────────
 
   l1_sc_threshold_looks_like_flag: {
-    message: ({ value }) => `Значение sc_threshold "${value}" выглядит как другой флаг — значение отсутствует. Укажите число (например, 0)`,
+    message: ({ value }) => `Значение sc_threshold равно "${value}" и похоже на другой флаг — числовой параметр пропущен. Укажите число, например 0`,
     hint: '0 = отключить обнаружение смены сцены (рекомендуется для живого вещания/IPTV для сохранения фиксированного GOP). По умолчанию FFmpeg: 40',
   },
   l1_sc_threshold_invalid: {
@@ -75,7 +75,7 @@ export default {
   // ── Layer 1: bframes ─────────────────────────────────────────────────────
 
   l1_bframes_looks_like_flag: {
-    message: ({ value }) => `Значение B-кадров "${value}" выглядит как другой флаг — значение отсутствует. Укажите число (например, 2)`,
+    message: ({ value }) => `Значение B-frames равно "${value}" и похоже на другой флаг — числовой параметр пропущен. Укажите число, например 2`,
     hint: '0 для живого вещания/низкой задержки (без задержки). 2–3 для VOD H.264. HEVC поддерживает до 8. Рекомендуется: 0 для живого, 2 для VOD',
   },
   l1_bframes_invalid: {
@@ -90,7 +90,7 @@ export default {
   // ── Layer 1: refs ─────────────────────────────────────────────────────────
 
   l1_refs_looks_like_flag: {
-    message: ({ value }) => `Значение опорных кадров "${value}" выглядит как другой флаг — значение отсутствует. Укажите число (например, 3)`,
+    message: ({ value }) => `Значение refs равно "${value}" и похоже на другой флаг — числовой параметр пропущен. Укажите число, например 3`,
     hint: '1 = быстрейшее декодирование/минимальная задержка. 3–5 = типичный баланс качества/скорости. Более высокие значения улучшают сжатие, но увеличивают память декодера. Рекомендуется: 3',
   },
   l1_refs_invalid: {
@@ -237,7 +237,7 @@ export default {
   // ── Layer 1: aspect ──────────────────────────────────────────────────────
 
   l1_aspect_invalid: {
-    message: ({ value }) => `Соотношение сторон должно быть в формате Ш:В, например 16:9 или 4:3 (получено: "${value}")`,
+    message: ({ value }) => `Соотношение сторон должно быть в формате W:H, например 16:9 или 4:3 (получено: "${value}")`,
     hint: 'Типичные: 16:9 (широкоэкранный), 4:3 (стандартный), 21:9 (ультраширокий)',
   },
 
@@ -255,7 +255,7 @@ export default {
   // ── Layer 1: bsf video ──────────────────────────────────────────────────
 
   l1_bsf_video_invalid: {
-    message: ({ valid, val }) => `Видео фильтр битового потока должен быть одним из: ${valid} (получено: "${val}")`,
+    message: ({ valid, val }) => `Video bitstream filter должен быть одним из: ${valid} (получено: "${val}")`,
     hint: 'h264_mp4toannexb: H.264 в MPEG-TS. hevc_mp4toannexb: HEVC в MPEG-TS. Применяйте только фильтры, соответствующие кодеку',
   },
 
@@ -273,7 +273,7 @@ export default {
     hint: 'Типичные: 1920x1080 (Full HD), 1280x720 (HD), 3840x2160 (4K UHD), 720x576 (SD PAL), 720x480 (SD NTSC)',
   },
   l1_framesize_invalid: {
-    message: 'Размер кадра должен быть в формате ШxВ, например 1920x1080 (разделитель "x" или "-")',
+    message: 'Размер кадра должен быть в формате WxH, например 1920x1080 (разделитель "x" или "-")',
     hint: 'Типичные: 1920x1080 (Full HD), 1280x720 (HD), 3840x2160 (4K UHD), 720x576 (SD PAL), 720x480 (SD NTSC)',
   },
 
@@ -291,15 +291,15 @@ export default {
   // ── Layer 1: scale filter syntax ─────────────────────────────────────────
 
   l1_vf_scale_wrong_separator: {
-    message: ({ name, value }) => `Значение ${name} "${value}" использует неправильный разделитель — фильтр масштабирования требует "Ш:В", а не "ШxВ"`,
+    message: ({ name, value }) => `Значение ${name} "${value}" использует неправильный разделитель — фильтр scale требует формат "W:H", а не "WxH"`,
     hint: 'В фильтре scale используйте ":", например scale=1920:1080 или scale=w=1920:h=1080. Разделитель "x" допустим только для -s',
   },
   l1_vf_scale_comma_separator: {
     message: ({ name, w, h }) => `${name}=${w},${h} использует "," между шириной и высотой — запятая разделяет фильтры в цепочке, используйте ":" (${name}=${w}:${h})`,
-    hint: 'В фильтре разделяйте ширину и высоту через ":" — запятая "," разделяет фильтры в цепочке. Используйте scale=Ш:В, а не scale=Ш,В',
+    hint: 'Внутри фильтра ширина и высота разделяются через ":" — запятая "," разделяет фильтры в цепочке. Используйте scale=W:H, а не scale=W,H',
   },
   l1_vf_scale_missing_dim: {
-    message: ({ name }) => `${name} требует указания ширины и высоты — используйте ${name}=Ш:В или ${name}=w=Ш:h=В`,
+    message: ({ name }) => `${name} требует и ширину, и высоту — используйте ${name}=W:H или ${name}=w=W:h=H`,
     hint: 'В фильтре scale используйте ":", например scale=1920:1080 или scale=w=1920:h=1080. Разделитель "x" допустим только для -s',
   },
 
@@ -559,7 +559,7 @@ export default {
   bwdif_cuda_no_hwaccel:  { message: 'bwdif_cuda требует конвейер декодирования на CUDA — установите HW Accel в «cuda» и HW Accel Output в «cuda»' },
   scale_cuda_no_hwaccel:  { message: 'scale_cuda требует конвейер декодирования на CUDA — установите HW Accel в «cuda» и HW Accel Output в «cuda»' },
   cpu_deinterlace_with_hwaccel_output: {
-    message: ({ s }) => `CPU-фильтр деинтерлейса "${s.deinterlaceFilter}" не может обработать GPU-кадры — HW Accel Output установлен в "${s.hwaccelOutputFormat}". Переключите деинтерлейс на "${s.deinterlaceFilter}_cuda" (GPU-фильтр) или установите HW Accel Output в «— None —»`,
+    message: ({ s }) => `CPU-фильтр деинтерлейса "${s.deinterlaceFilter}" не может обрабатывать GPU-кадры — HW Accel Output установлен в "${s.inputHwaccelOutputFormat}", то есть кадры остаются на GPU. Переключите деинтерлейс на "${s.deinterlaceFilter}_cuda" или установите HW Accel Output в «— None —»`,
   },
   cuda_filter_no_output_fmt: {
     message: ({ s }) => `CUDA-фильтр "${s.deinterlaceFilter || s.scaleFilter}" с HW Accel «cuda», но HW Accel Output не установлен в «cuda» — кадры будут перемещены в ОЗУ. Установите HW Accel Output в «cuda»`,
@@ -612,7 +612,7 @@ export default {
   },
   re_on_live_input:      { message: '-re не имеет смысла на живых сетевых входах и может вызвать дрейф потока' },
   loudnorm_wrong_rate:   { message: 'Измерение громкости EBU R128 определено на 48 кГц — выполните ресемплинг до 48000 перед применением loudnorm' },
-  no_fault_tolerance_live: { message: 'Флаги отказоустойчивости не заданы для живого входа — рассмотрите -timeout и -thread_queue_size для автономной работы' },
+  no_fault_tolerance_live: { message: 'Флаги отказоустойчивости не заданы для Live-входа — рассмотрите -timeout и -thread_queue_size для автономной работы' },
   file_input_no_re:      { message: 'Файловый вход без -re будет считываться быстрее реального времени, переполняя выходной буфер — включите -re для вещательного плейаута' },
   wallclock_non_capture: { message: '-use_wallclock_as_timestamps предназначен для устройств захвата с повреждёнными DTS/PTS — может исказить тайминг на других типах входа' },
   max_delay_non_udp_rtp: { message: '-max_delay эффективен в основном на UDP/RTP-входах для буферизации джиттера — ограниченное влияние на другие типы входа' },
@@ -691,7 +691,7 @@ export default {
       return `-s ${sfs.w}x${sfs.h} конфликтует с -vf scale=${vfs.w}:${vfs.h} — действует только одно (цепочка фильтров побеждает). Выберите одно.`
     },
   },
-  s_and_vf_scale_redundant: { message: 'И -s, и -vf scale= указывают одинаковый размер — избыточно. Используйте только -vf scale=Ш:В' },
+  s_and_vf_scale_redundant: { message: 'И -s, и -vf scale= задают один и тот же размер — это избыточно. Оставьте только -vf scale=W:H' },
   s_and_vf_scale_present:   { message: '-s и -vf scale= оба установлены — цепочка фильтров побеждает, -s игнорируется. Оставьте только одно' },
 
   // Scale filter no-op
@@ -701,8 +701,8 @@ export default {
   prefer_vf_scale_with_hwaccel: {
     message: ({ s }) => {
       const map = { cuda: 'scale_cuda', vaapi: 'scale_vaapi', qsv: 'scale_qsv' }
-      const suggested = map[s.hwaccel] || `scale_${s.hwaccel}`
-      return `Использование -s с -hwaccel ${s.hwaccel} вызывает CPU-масштабирование (кадры загружаются из GPU). Используйте -vf ${suggested}=Ш:В для сохранения кадров на GPU`
+      const suggested = map[s.inputHwaccel] || `scale_${s.inputHwaccel}`
+      return `Использование -s вместе с -hwaccel ${s.inputHwaccel} заставляет FFmpeg масштабировать на CPU, то есть выгружать кадры с GPU. Лучше использовать -vf ${suggested}=W:H, чтобы сохранить обработку на GPU`
     },
   },
 
@@ -716,7 +716,7 @@ export default {
   raw_flag_after_input:      { message: ({ flag }) => `${flag} — это входной флаг, но стоит после -i — его следует поместить перед входом` },
   raw_flag_after_output:     { message: ({ flag }) => `${flag} стоит после выходного целевого файла — параметры после выхода не применяются FFmpeg` },
   raw_missing_value_eof:     { message: ({ flag }) => `${flag} в конце команды не имеет значения` },
-  raw_missing_value_next:    { message: ({ flag, next }) => `${flag} за которым следует ${next} — значение для ${flag}, похоже, отсутствует` },
+  raw_missing_value_next:    { message: ({ flag, next }) => `После ${flag} идёт ${next}, поэтому значение для ${flag}, скорее всего, пропущено` },
   raw_no_input:              { message: 'Флаг -i (вход) не найден — FFmpeg требует хотя бы один вход' },
   raw_no_output:             { message: 'Выходной файл/URL не указан' },
   raw_format_ext_mismatch:   { message: ({ fmt, ext, expected }) => `-f ${fmt}, но расширение выходного файла "${ext}" — ожидалось ${expected}` },
@@ -730,6 +730,6 @@ export default {
 
   // ── serialize: Hints ─────────────────────────────────────────────────────
 
-  serialize_flag_moved:      { message: ({ flag }) => `${flag} перемещён перед -i (требуется FFmpeg)` },
+  serialize_flag_moved:      { message: ({ flag }) => `${flag} перемещён перед -i, потому что FFmpeg требует именно такой порядок` },
   serialize_unknown_flag:    { message: ({ flag }) => `${flag} не распознан fflint и не был проверен` },
 }

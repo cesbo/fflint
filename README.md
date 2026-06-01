@@ -855,6 +855,18 @@ setLocale(ruCatalog)
 // return messages and hints in Russian.
 ```
 
+### Switching to Spanish
+
+```js
+import { setLocale } from '@cesbo/fflint/i18n'
+import esCatalog from '@cesbo/fflint/locales/es'
+
+setLocale(esCatalog)
+
+// From now on, all validate() / validateRaw() / serialize() calls
+// return messages and hints in Spanish.
+```
+
 ### Reverting to English
 
 ```js
@@ -918,6 +930,7 @@ setLocale(frCatalog)
 |------|----------|
 | `fflint/locales/en.js` | English (default) |
 | `fflint/locales/ru.js` | Russian |
+| `fflint/locales/es.js` | Spanish (es-ES) |
 
 ### API
 
@@ -1146,6 +1159,10 @@ Default English message catalog. Exported as default. Loaded automatically by `i
 ### `locales/ru.js`
 
 Russian message catalog. Pass to `setLocale()` to switch the UI language to Russian.
+
+### `locales/es.js`
+
+Spanish (es-ES) message catalog. Pass to `setLocale()` to switch the UI language to Spanish.
 
 ---
 
